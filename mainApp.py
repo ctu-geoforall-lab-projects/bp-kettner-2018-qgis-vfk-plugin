@@ -102,7 +102,11 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
             self.groupBox.setEnabled(False)
 
         # settings
-        self.loadVfkButton.setDisabled(True)
+        # only for testing purposes...
+        testFile = os.path.join(os.path.dirname(__file__), 'sample_data', '600016.vfk')
+        self.vfkFileLineEdit.setText(testFile)
+        self.__fileName.append(testFile)
+        # self.loadVfkButton.setDisabled(True)
 
         self.searchFormMainControls = SearchFormController.MainControls()
         self.searchFormMainControls.formCombobox = self.searchCombo
