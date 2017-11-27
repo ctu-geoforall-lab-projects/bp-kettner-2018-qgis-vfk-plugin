@@ -103,7 +103,7 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
 
         # settings
         # only for testing purposes...
-        testFile = os.path.join(os.path.dirname(__file__), 'sample_data', '600016.vfk')
+        testFile = os.path.join(os.path.dirname(__file__), 'sample_data', '600016.db')
         self.vfkFileLineEdit.setText(testFile)
         self.__fileName.append(testFile)
         # self.loadVfkButton.setDisabled(True)
@@ -535,7 +535,8 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
             layers_names.append(
                 self.__mOgrDataSource.GetLayer(i).GetLayerDefn().GetName())
 
-        if ('PAR' not in layers_names or 'BUD' not in layers_names) and len(self.__vfkLineEdits) == 1:
+        #if ('PAR' not in layers_names or 'BUD' not in layers_names) and len(self.__vfkLineEdits) == 1:
+        if 'PAR' not in layers_names and len(self.__vfkLineEdits) == 1:
             self.__dataWithoutParBud()
             self.labelLoading.setText(
                 u'Data nemohla být načtena. Vstupní soubor neobsahuje bloky PAR a BUD.')
@@ -544,8 +545,13 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
 
         # load all layers
         self.progressBar.setRange(0, layerCount - 1)
+        #in case that there is only one layer 'par' - will be removed
+        if layerCount == 1:
+            self.progressBar.setRange(0, 1)
         for i in xrange(layerCount):
-            self.progressBar.setValue(i)
+            if layerCount == 1:
+                self.progressBar.setValue(1)
+            #self.progressBar.setValue(i)
             theLayerName = self.__mOgrDataSource.GetLayer(
                 i).GetLayerDefn().GetName()
             self.labelLoading.setText(
@@ -852,7 +858,8 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         file_paths = []
         for root, dirs, files in os.walk(dir_path):
             for file in files:
-                if file.endswith(".vfk"):
+                if file.endswith(".db"):
+                #if file.endswith(".vfk"):
                     file_paths.append(os.path.join(root, file))
 
         return file_paths
