@@ -200,9 +200,10 @@ class VFKParBuilder:
         self.dsn_db = None
         self.dsn_vfk = None
 
-#Funkcnost tridy
-object = VFKParBuilder('600016.vfk')
-#object.get_par()
-#object.filter_hp(706860403)
-object.build_all()
-#print(object.build_all.__doc__) #vypis dokumentacniho retezce
+if __name__ == "__main__":
+    #Funkcnost tridy
+    object = VFKParBuilder('600016.vfk')
+    #object.get_par()
+    #object.filter_hp(706860403)
+    object.build_all()
+    #print(object.build_all.__doc__) #vypis dokumentacniho retezce
