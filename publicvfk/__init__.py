@@ -51,7 +51,7 @@ class VFKParBuilder:
             raise VFKParBuilderError('Databaze nepripojena')
         #New list to save parcel numbers
         parcels = []
-        
+
         cur = db.cursor()
         cur.execute('SELECT par_id_1 as id FROM hp UNION SELECT par_id_2 as id from hp')
         while True:
@@ -60,13 +60,13 @@ class VFKParBuilder:
                 break
             parcels.append(row[0])
         db.close()
-        
+
         return parcels
 
     def filter_hp(self, id_par):
         """Form a list of vertices for number specified parcel
         
-        :param int id_par: The number of parcel is looking for the boundaries
+        :param int id_par: The id number of parcel is looking for the boundaries
         :return: list of unsorted and both direction vertices for specified parcel number
         :raises VFKParBuilderError: if vfk source file in not connected
         """
@@ -136,18 +136,13 @@ class VFKParBuilder:
         """
 
         vertices = list_hp[position]
-        first = (ring.GetX(0), ring.GetY(0))  # the first point in the ring, is not added when the ring is closed(already in)
         if direction == 'front':
             for i in range(1, len(vertices)):
                 point = vertices[i]
-                if point == first:  #secures doubled first point
-                    break
                 ring.AddPoint(point[0], point[1])
         if direction == 'back':
             for i in range(len(vertices) - 2, -1, -1):
                 point = vertices[i]
-                if point == first: #secures doubled first point
-                    break
                 ring.AddPoint(point[0], point[1])
         list_hp.pop(position)
         return ring
@@ -205,5 +200,5 @@ if __name__ == "__main__":
     object = VFKParBuilder('600016.vfk')
     #object.get_par()
     #object.filter_hp(706860403)
-    object.build_all()
+    object.build_all(9)
     #print(object.build_all.__doc__) #vypis dokumentacniho retezce
