@@ -33,9 +33,13 @@ class VFKParBuilder:
         self.layer_par = self.dsn_db.CreateLayer(table, srs, ogr.wkbPolygon, ['OVERWRITE=YES'])
         # Layer definition
         self.layer_par_def = self.layer_par.GetLayerDefn()
-        # New field - atribute "id_par"
+        # New fields - atributes "id_par", "kmenove_cislo_par", "poddeleni_cisla_par"
         idField = ogr.FieldDefn("id_par", ogr.OFTInteger)
+        kmenField = ogr.FieldDefn("kmenove_cislo_par", ogr.OFTInteger)
+        podField = ogr.FieldDefn("poddeleni_cisla_par", ogr.OFTInteger)
         self.layer_par.CreateField(idField)
+        self.layer_par.CreateField(kmenField)
+        self.layer_par.CreateField(podField)
 
     def get_par(self):
         """Form a unique list of parcel ids by SQL command
@@ -180,6 +184,24 @@ class VFKParBuilder:
             print("Cislo zapsane parcely: {} ".format(par_id))
             #Set id_par field
             value.SetField("id_par", par_id)
+            #Set par number fields
+            db = sqlite3.connect(self.filename + '.db')
+            if db is None:
+                raise VFKParBuilderError('Databaze nepripojena')
+            cur = db.cursor()
+            cur.execute(
+                'SELECT distinct op.text FROM(SELECT par_id_1 as id FROM hp UNION SELECT par_id_2 as id from hp) uniq_par JOIN op ON op.par_id = uniq_par.id WHERE op.text is not null and par_id = {}'.format(
+                    par_id))
+            while True:
+                row = cur.fetchone()
+                if row == None:
+                    break
+                if '/' in row[0]:
+                    value.SetField("kmenove_cislo_par", row[0].split('/')[0])
+                    value.SetField("poddeleni_cisla_par", row[0].split('/')[1])
+                else:
+                    value.SetField("kmenove_cislo_par", row[0])
+            db.close()
             self.layer_par.CreateFeature(value)
             value = None
 
