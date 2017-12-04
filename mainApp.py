@@ -38,6 +38,8 @@ from ui_MainApp import Ui_MainApp
 from searchFormController import *
 from openThread import *
 from applyChanges import *
+from publicvfk import VFKParBuilder
+from publicvfk import VFKParBuilderError
 
 
 class VFKError(StandardError):
@@ -103,10 +105,10 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
 
         # settings
         # only for testing purposes...
-        testFile = os.path.join(os.path.dirname(__file__), 'sample_data', '600016.db')
-        self.vfkFileLineEdit.setText(testFile)
-        self.__fileName.append(testFile)
-        # self.loadVfkButton.setDisabled(True)
+        #testFile = os.path.join(os.path.dirname(__file__), 'sample_data', '600016.db')
+        #self.vfkFileLineEdit.setText(testFile)
+        #self.__fileName.append(testFile)
+        self.loadVfkButton.setDisabled(True)
 
         self.searchFormMainControls = SearchFormController.MainControls()
         self.searchFormMainControls.formCombobox = self.searchCombo
@@ -527,9 +529,18 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
             raise VFKError(
                 u"Nelze otevřít VFK soubor '{}' jako platný OGR datasource.".format(fileName))
 
-        layerCount = self.__mOgrDataSource.GetLayerCount()
-
         layers_names = []
+
+        t_par = self.__mOgrDataSource.GetLayerByName('PAR')
+        #t_bud = self.__mOgrDataSource.GetLayerByName('BUD')
+        if t_par == None:
+            object = VFKParBuilder(self.__fileName[0].split('//')[-1])
+            object.build_all(9)
+            self.labelLoading.setText(
+                u'Data byla načtena pomocí rozšíření, které neobsažené bloky PAR a BUD sestavilo z neúplného VFK souboru.')
+            layers_names.append('PAR')
+
+        layerCount = self.__mOgrDataSource.GetLayerCount()
 
         for i in xrange(layerCount):
             layers_names.append(
@@ -544,21 +555,21 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
             return
 
         # load all layers
-        self.progressBar.setRange(0, layerCount - 1)
+        ##self.progressBar.setRange(0, layerCount - 1)
         #in case that there is only one layer 'par' - will be removed
-        if layerCount == 1:
-            self.progressBar.setRange(0, 1)
-        for i in xrange(layerCount):
-            if layerCount == 1:
-                self.progressBar.setValue(1)
-            #self.progressBar.setValue(i)
-            theLayerName = self.__mOgrDataSource.GetLayer(
-                i).GetLayerDefn().GetName()
-            self.labelLoading.setText(
-                u"VFK data {}/{}: {}".format(i + 1, layerCount, theLayerName))
-            QgsApplication.processEvents()
-            self.__mOgrDataSource.GetLayer(i).GetFeatureCount(True)
-            time.sleep(0.02)
+        ##if layerCount == 1:
+         ##   self.progressBar.setRange(0, 1)
+        ##for i in xrange(layerCount):
+            ##if layerCount == 1:
+            ##    self.progressBar.setValue(1)
+            ##self.progressBar.setValue(i)
+            ##theLayerName = self.__mOgrDataSource.GetLayer(
+            ##    i).GetLayerDefn().GetName()
+            ##self.labelLoading.setText(
+             #   u"VFK data {}/{}: {}".format(i + 1, layerCount, theLayerName))
+            ##QgsApplication.processEvents()
+            ##self.__mOgrDataSource.GetLayer(i).GetFeatureCount(True)
+            ##time.sleep(0.02)
 
         self.labelLoading.setText(
             u'Soubor {} úspěšně načten.'.format(label_text))
