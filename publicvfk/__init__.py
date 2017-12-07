@@ -40,6 +40,10 @@ class VFKParBuilder:
         self.layer_par.CreateField(idField)
         self.layer_par.CreateField(kmenField)
         self.layer_par.CreateField(podField)
+        #add tables
+        self.add_tables('add_HP_SBP_geom.sql')
+        #Close datasource
+        #self.dsn_vfk = None
 
     def get_par(self):
         """Form a unique list of parcel ids by SQL command
@@ -217,10 +221,34 @@ class VFKParBuilder:
         self.dsn_db = None
         self.dsn_vfk = None
 
+    def get_sql_commands_from_file(self, fileName):
+
+         file = open(fileName, 'r')
+         sqlFile = file.read()
+         file.close()
+         sqlCommands = sqlFile.split(';')
+
+         return sqlCommands
+
+    def add_tables(self,fileName):
+        #Connection to the database
+        db = sqlite3.connect(self.filename + '.db')
+        if db is None:
+            raise VFKParBuilderError('Database not connected')
+        #Adding tables
+        cur = db.cursor()
+        sqlCommands = self.get_sql_commands_from_file(fileName)
+        #print 'Pocet prikazu', len(sqlCommands)
+        for command in sqlCommands:
+            cur.execute(command)
+        db.commit()#withou commit it does not write data from the last sql command
+        db.close()
+
 if __name__ == "__main__":
     #Funkcnost tridy
     object = VFKParBuilder('600016.vfk')
     #object.get_par()
     #object.filter_hp(706860403)
-    object.build_all(9)
+    object.build_all(9) #max 429
+    #object.add_tables('add_HP_SBP_geom.sql')
     #print(object.build_all.__doc__) #vypis dokumentacniho retezce
