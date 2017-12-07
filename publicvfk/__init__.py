@@ -19,9 +19,19 @@ class VFKParBuilder:
         self.filename = os.path.splitext(filename)[0]
 
         self.dsn_vfk = ogr.Open(self.filename + '.vfk')
+        # this hack is needed only for GDAL < 2.2
+        self.dsn_vfk.GetLayerByName('HP').GetFeature(1)
         if self.dsn_vfk is None:
             raise VFKParBuilderError('Nelze otevrit datasource')
+        self.dsn_vfk = None
 
+        #add tables
+        self.add_tables(os.path.join(
+            os.path.dirname(__file__),
+            'sql_commands',
+            'add_HP_SBP_geom.sql'
+        ))
+        
         self.dsn_db = ogr.Open(self.filename + '.db', True)
         if self.dsn_db is None:
             raise VFKParBuilderError('Database in write mode is not connected')
@@ -40,10 +50,7 @@ class VFKParBuilder:
         self.layer_par.CreateField(idField)
         self.layer_par.CreateField(kmenField)
         self.layer_par.CreateField(podField)
-        #add tables
-        self.add_tables('add_HP_SBP_geom.sql')
-        #Close datasource
-        #self.dsn_vfk = None
+
 
     def get_par(self):
         """Form a unique list of parcel ids by SQL command
@@ -81,7 +88,7 @@ class VFKParBuilder:
 
         #DataSource
         # Data in layer HP
-        lyr_hp = self.dsn_vfk.GetLayerByName('HP')
+        lyr_hp = self.dsn_db.GetLayerByName('HP')
         if lyr_hp is None:
             raise VFKParBuilderError('Nelze nacist vrstvu HP')
         #Filter of vertices on specified parcel
@@ -100,22 +107,28 @@ class VFKParBuilder:
         :param int list_hp: unsorted list of vertices forming par boundary
         :return: polygon geometry on the specified parcel
         """
-
+        def first_line(ring, list_hp):
+            # Add the first vertice and remove it in the list of vertices
+            vertice_1 = list_hp[0]
+            for i in range(len(vertice_1)):
+                bod = vertice_1[i]
+                ring.AddPoint(bod[0], bod[1])
+            list_hp.pop(0)
+            
         # Create a ring
-        ring = ogr.Geometry(ogr.wkbLinearRing)
-
-        # Add the first vertice and remove it in the list of vertices
-        vertice_1 = list_hp[0]
-        for i in range(len(vertice_1)):
-            bod = vertice_1[i]
-            ring.AddPoint(bod[0], bod[1])
-        list_hp.pop(0)
+        rings = []
+        rings.append(ogr.Geometry(ogr.wkbLinearRing))
+        ring = rings[0]
+        first_line(ring, list_hp)
+        
+        print list_hp
 
         # Adding the next vertices
         # Searchng for the end point of the ring in the list of vertices - the first searched point
         search = (ring.GetX(ring.GetPointCount() - 1), ring.GetY(ring.GetPointCount() - 1))  # end point
 
         while len(list_hp) > 0:  # it runs till list_hp contains vertices
+            # count1 = len(list_hp)
             for position in range(len(list_hp)): #position-shows the position of added vertice in list_hp
                 if search in list_hp[position]:
                     if (list_hp[position].index(search)) == 0: #the vertice has the same orientation as the first added
@@ -126,7 +139,13 @@ class VFKParBuilder:
                         self.add_boundary(position, 'back', list_hp, ring)
                         search = (ring.GetX(ring.GetPointCount() - 1), ring.GetY(ring.GetPointCount() - 1))
                         break
-
+            # count2 = len(list_hp)
+            # if count1 == count2:
+            #     # no match, create new ring
+            #     rings.append(ogr.Geometry(ogr.wkbLinearRing))
+            #     ring = rings[-1]
+                
+            
         # Create polygon
         poly_geom = ogr.Geometry(ogr.wkbPolygon)
         poly_geom.AddGeometry(ring)
@@ -170,9 +189,13 @@ class VFKParBuilder:
         #Start transaction
         self.layer_par.StartTransaction()
 
+        count = len(parcels)
+        idx = 0
         for par_id in parcels:
+            print("{}/{} ".format(idx, count))
+            idx += 1
+            
             list_hp = [] # vytvoreni prazdneho seznamu pro ulozeni hranic sestavovane parcely
-
             # collect unsorted list of vertices forming par boundary
             for feature in self.filter_hp(par_id):
                 geom = feature.GetGeometryRef()
@@ -185,7 +208,6 @@ class VFKParBuilder:
             value = ogr.Feature(self.layer_par_def)
             #Set geometry
             value.SetGeometry(poly_geom)
-            print("Cislo zapsane parcely: {} ".format(par_id))
             #Set id_par field
             value.SetField("id_par", par_id)
             #Set par number fields
@@ -219,7 +241,7 @@ class VFKParBuilder:
 
         #Close database
         self.dsn_db = None
-        self.dsn_vfk = None
+        # self.dsn_vfk = None
 
     def get_sql_commands_from_file(self, fileName):
 
@@ -230,14 +252,14 @@ class VFKParBuilder:
 
          return sqlCommands
 
-    def add_tables(self,fileName):
+    def add_tables(self, sqlfileName):
         #Connection to the database
         db = sqlite3.connect(self.filename + '.db')
         if db is None:
             raise VFKParBuilderError('Database not connected')
         #Adding tables
         cur = db.cursor()
-        sqlCommands = self.get_sql_commands_from_file(fileName)
+        sqlCommands = self.get_sql_commands_from_file(sqlfileName)
         #print 'Pocet prikazu', len(sqlCommands)
         for command in sqlCommands:
             cur.execute(command)
@@ -249,6 +271,6 @@ if __name__ == "__main__":
     object = VFKParBuilder('600016.vfk')
     #object.get_par()
     #object.filter_hp(706860403)
-    object.build_all(9) #max 429
+    object.build_all() #max 429
     #object.add_tables('add_HP_SBP_geom.sql')
     #print(object.build_all.__doc__) #vypis dokumentacniho retezce
