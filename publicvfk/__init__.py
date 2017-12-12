@@ -3,6 +3,7 @@
 import os
 import sys
 import sqlite3
+import osgeo.gdal
 
 from osgeo import ogr, osr
 
@@ -20,7 +21,8 @@ class VFKParBuilder:
 
         self.dsn_vfk = ogr.Open(self.filename + '.vfk')
         # this hack is needed only for GDAL < 2.2
-        self.dsn_vfk.GetLayerByName('HP').GetFeature(1)
+        if osgeo.gdal.VersionInfo()<2020000:
+            self.dsn_vfk.GetLayerByName('HP').GetFeature(1)
         if self.dsn_vfk is None:
             raise VFKParBuilderError('Nelze otevrit datasource')
         self.dsn_vfk = None
@@ -100,7 +102,7 @@ class VFKParBuilder:
 
         return hp_list #jen prvky ve vrstve, nikoliv geometrie (ta je oznacena list_hp)
 
-    def build_par(self, list_hp): #, id_par
+    def build_par(self, list_hp):
         """Build a geometry of number specified parcel in geometric way 
         
         #:param int id_par: The number of parcel which the geometry is build
@@ -108,58 +110,105 @@ class VFKParBuilder:
         :return: polygon geometry on the specified parcel
         """
         def first_line(ring, list_hp):
-            # Add the first vertice and remove it in the list of vertices
-            vertice_1 = list_hp[0]
-            for i in range(len(vertice_1)):
-                bod = vertice_1[i]
+            # Add the first vertix and remove it from the list of vertices
+            vertix_1 = list_hp[0]
+            for i in range(len(vertix_1)):
+                bod = vertix_1[i]
                 ring.AddPoint(bod[0], bod[1])
             list_hp.pop(0)
-            
+
         # Create a ring
         rings = []
         rings.append(ogr.Geometry(ogr.wkbLinearRing))
         ring = rings[0]
         first_line(ring, list_hp)
-        
-        print list_hp
 
-        # Adding the next vertices
-        # Searchng for the end point of the ring in the list of vertices - the first searched point
+        # Adding the next vertix
+        # Searching for the end point of the ring in the list of vertices - the first searched point
         search = (ring.GetX(ring.GetPointCount() - 1), ring.GetY(ring.GetPointCount() - 1))  # end point
-
         while len(list_hp) > 0:  # it runs till list_hp contains vertices
-            # count1 = len(list_hp)
+            count1 = len(list_hp)
             for position in range(len(list_hp)): #position-shows the position of added vertice in list_hp
                 if search in list_hp[position]:
-                    if (list_hp[position].index(search)) == 0: #the vertice has the same orientation as the first added
+                    if (list_hp[position].index(search)) == 0: #the vertix has the same orientation as the first added
                         self.add_boundary(position, 'front', list_hp, ring)
                         search = (ring.GetX(ring.GetPointCount() - 1), ring.GetY(ring.GetPointCount() - 1))
                         break
-                    if (list_hp[position].index(search)) > 0:  # the vertice has opposite orientation
+                    if (list_hp[position].index(search)) > 0:  # the vertix has opposite orientation
                         self.add_boundary(position, 'back', list_hp, ring)
                         search = (ring.GetX(ring.GetPointCount() - 1), ring.GetY(ring.GetPointCount() - 1))
                         break
-            # count2 = len(list_hp)
-            # if count1 == count2:
-            #     # no match, create new ring
-            #     rings.append(ogr.Geometry(ogr.wkbLinearRing))
-            #     ring = rings[-1]
-                
-            
-        # Create polygon
-        poly_geom = ogr.Geometry(ogr.wkbPolygon)
-        poly_geom.AddGeometry(ring)
+            #Test if there is another ring
+            count2 = len(list_hp)
+            if count1 == count2:
+            # no match, create new ring
+                rings.append(ogr.Geometry(ogr.wkbLinearRing))
+                ring = rings[-1]
+                first_line(ring, list_hp)
+                search = (ring.GetX(ring.GetPointCount() - 1), ring.GetY(ring.GetPointCount() - 1))
+                #print 'Hledam', search
+        #Test of closed polygons
+        for ring in rings:
+            first = ring.GetPoint(0)
+            last = ring.GetPoint(ring.GetPointCount() - 1)
+            if first != last:
+                return None
+        # Test on holes in polygon - find outRing
+        if len(rings)>1:
+            #Get geometries and envelopes
+            envelops = []
+            for polygon in rings:
+                poly = ogr.Geometry(ogr.wkbPolygon)
+                poly.AddGeometry(polygon)
+                envelops.append(poly.GetEnvelope())
+            #Find outRing
+            #1)Extrems
+            minX = []
+            maxX = []
+            minY = []
+            maxY = []
+            for env in envelops:
+                minX.append(env[0])
+                maxX.append(env[1])
+                minY.append(env[2])
+                maxY.append(env[3])
+            minX_v = min(minX)
+            maxX_v = max(maxX)
+            minY_v = min(minY)
+            maxY_v = max(maxY)
+            #2)Indexes
+            minX_i = minX.index(minX_v)
+            maxX_i = maxX.index(maxX_v)
+            minY_i = minY.index(minY_v)
+            maxY_i = maxY.index(maxY_v)
+            #3)Conclusion - which ring is outRing
+            if minX_i == maxX_i == minY_i ==maxY_i:
+                outRing = rings[minX_i] #ring with the biggest envelope is outRing
+                rings.pop(minX_i)
+                innerRings = rings #the rest in rings are innerRings(holes)
+            #else:
+                #print 'Indexes do not match'
+            #Create a polygon with holes
+            poly_geom = ogr.Geometry(ogr.wkbPolygon)
+            poly_geom.AddGeometry(outRing)
+            for holes in innerRings:
+                poly_geom.AddGeometry(holes)
+            return poly_geom
 
-        return poly_geom
+        else:
+            # Create a polygon
+            poly_geom = ogr.Geometry(ogr.wkbPolygon)
+            poly_geom.AddGeometry(ring)
+            return poly_geom
 
     def add_boundary(self,position,direction, list_hp, ring):
-        """Add the vertice to the ring(geometry of the parcel) 
+        """Add the vertice to the END of ring(geometry of the parcel) 
         
-        :param int position: shows the position of added vertice in the list_hp
-        :param str direction: specifies vertice direction - 'front' or 'back'
+        :param int position: shows the position of added vertix in the list_hp
+        :param str direction: specifies vertix direction - 'front' or 'back'
         :param int list_hp: list of unsorted and both direction geometric vertices for specified parcel number
         :param geometry ring: geometry of the parcel that is built #jaky typ u geometrie?
-        :return: the ring with added vertice
+        :return: the ring with added vertix
         """
 
         vertices = list_hp[position]
@@ -190,9 +239,10 @@ class VFKParBuilder:
         self.layer_par.StartTransaction()
 
         count = len(parcels)
-        idx = 0
+        idx = 1
+        unclosed = []
         for par_id in parcels:
-            print("{}/{} ".format(idx, count))
+            #print("{}/{} ".format(idx, count))
             idx += 1
             
             list_hp = [] # vytvoreni prazdneho seznamu pro ulozeni hranic sestavovane parcely
@@ -201,9 +251,14 @@ class VFKParBuilder:
                 geom = feature.GetGeometryRef()
                 list_hp.append(geom.GetPoints()) # seznam hranic parcel - jiz geometrie
             #Create par geometry
-            poly_geom = self.build_par(list_hp) #(par_id, list_hp)
-
-            #WRITE TO DATABASE
+            poly_geom = self.build_par(list_hp)
+            if poly_geom is not None:
+                #Convert to 2D
+                poly_geom.FlattenTo2D()
+                #WRITE TO DATABASE
+            else:
+                #print 'Unclosed polygon'
+                unclosed.append(par_id)
             # Create the feature
             value = ogr.Feature(self.layer_par_def)
             #Set geometry
@@ -213,7 +268,7 @@ class VFKParBuilder:
             #Set par number fields
             db = sqlite3.connect(self.filename + '.db')
             if db is None:
-                raise VFKParBuilderError('Databaze nepripojena')
+                raise VFKParBuilderError('Database not connected')
             cur = db.cursor()
             cur.execute(
                 'SELECT distinct op.text FROM(SELECT par_id_1 as id FROM hp UNION SELECT par_id_2 as id from hp) uniq_par JOIN op ON op.par_id = uniq_par.id WHERE op.text is not null and par_id = {}'.format(
@@ -232,16 +287,16 @@ class VFKParBuilder:
             value = None
 
             # print result to stdout and check limit (will be removed)
-            #print (par_id, poly_geom.ExportToWkt())
             counter += 1
             if limit and counter > limit:
                 break
+
         #End transaction
         self.layer_par.CommitTransaction()
-
+        #Unclosed
+        #print ('The number of unclosed parcels: {}'.format(len(unclosed)))
         #Close database
         self.dsn_db = None
-        # self.dsn_vfk = None
 
     def get_sql_commands_from_file(self, fileName):
 
@@ -271,6 +326,6 @@ if __name__ == "__main__":
     object = VFKParBuilder('600016.vfk')
     #object.get_par()
     #object.filter_hp(706860403)
-    object.build_all() #max 429
+    object.build_all()
     #object.add_tables('add_HP_SBP_geom.sql')
     #print(object.build_all.__doc__) #vypis dokumentacniho retezce
