@@ -429,7 +429,7 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         try:
             self.__setSymbology(layer)
         except VFKWarning as e:
-            QMessageBox.information(self, 'Load Style', e, QMessageBox.Ok)
+            QMessageBox.information(self, 'Load Style', '{}'.format(e), QMessageBox.Ok)
 
         QgsMapLayerRegistry.instance().addMapLayer(layer)
 
