@@ -211,7 +211,7 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         self.vfkBrowser.goForth()
 
     def selectParInMap(self):
-        self.showInMap(self.vfkBrowser.currentParIds(), "PAR")
+        self.showInMap(self.vfkBrowser.currentParIds(), "par") #PAR
 
     def selectBudInMap(self):
         self.showInMap(self.vfkBrowser.currentBudIds(), "BUD")
@@ -379,9 +379,9 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         self.__mLoadedLayers.clear()
 
         if self.parCheckBox.isChecked():
-            self.__loadVfkLayer('PAR')
+            self.__loadVfkLayer('par')
         else:
-            self.__unLoadVfkLayer('PAR')
+            self.__unLoadVfkLayer('par')
 
         if self.budCheckBox.isChecked():
             self.__loadVfkLayer('BUD')
@@ -529,16 +529,24 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
             raise VFKError(
                 u"Nelze otevřít VFK soubor '{}' jako platný OGR datasource.".format(fileName))
 
-        layers_names = []
-
         t_par = self.__mOgrDataSource.GetLayerByName('PAR')
         #t_bud = self.__mOgrDataSource.GetLayerByName('BUD')
+        self.__mOgrDataSource = None
+
+
         if t_par == None:
-            object = VFKParBuilder(self.__fileName[0].split('//')[-1])
-            object.build_all(9)
+            object = VFKParBuilder(fileName)
+            object.build_all()
             self.labelLoading.setText(
                 u'Data byla načtena pomocí rozšíření, které neobsažené bloky PAR a BUD sestavilo z neúplného VFK souboru.')
-            layers_names.append('PAR')
+
+        self.__mOgrDataSource = ogr.Open(
+            fileName, 0)  # 0 - datasource is open in read-only mode, there HAS TO be placed to build blocks PAR and BUD without connection to the db
+        #that is the reason why is the vfk opened twice
+        if t_par == None:
+            self.__mOgrDataSource = ogr.Open(os.path.splitext(fileName)[0]+'.db')
+
+        layers_names = []
 
         layerCount = self.__mOgrDataSource.GetLayerCount()
 
@@ -546,8 +554,11 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
             layers_names.append(
                 self.__mOgrDataSource.GetLayer(i).GetLayerDefn().GetName())
 
+        self.labelLoading.setText(
+            u'Layernames jsou pripravene: {}'.format(layers_names))
+
         #if ('PAR' not in layers_names or 'BUD' not in layers_names) and len(self.__vfkLineEdits) == 1:
-        if 'PAR' not in layers_names and len(self.__vfkLineEdits) == 1:
+        if 'par' not in layers_names and len(self.__vfkLineEdits) == 1:
             self.__dataWithoutParBud()
             self.labelLoading.setText(
                 u'Data nemohla být načtena. Vstupní soubor neobsahuje bloky PAR a BUD.')
@@ -555,21 +566,18 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
             return
 
         # load all layers
-        ##self.progressBar.setRange(0, layerCount - 1)
-        #in case that there is only one layer 'par' - will be removed
-        ##if layerCount == 1:
-         ##   self.progressBar.setRange(0, 1)
-        ##for i in xrange(layerCount):
-            ##if layerCount == 1:
-            ##    self.progressBar.setValue(1)
-            ##self.progressBar.setValue(i)
-            ##theLayerName = self.__mOgrDataSource.GetLayer(
-            ##    i).GetLayerDefn().GetName()
-            ##self.labelLoading.setText(
-             #   u"VFK data {}/{}: {}".format(i + 1, layerCount, theLayerName))
-            ##QgsApplication.processEvents()
-            ##self.__mOgrDataSource.GetLayer(i).GetFeatureCount(True)
-            ##time.sleep(0.02)
+        self.progressBar.setRange(0, layerCount - 1)
+        for i in xrange(layerCount):
+            #if layerCount == 1:
+            #   self.progressBar.setValue(1)
+            self.progressBar.setValue(i)
+            theLayerName = self.__mOgrDataSource.GetLayer(
+                i).GetLayerDefn().GetName()
+            self.labelLoading.setText(
+               u"VFK data {}/{}: {}".format(i + 1, layerCount, theLayerName))
+            QgsApplication.processEvents()
+            self.__mOgrDataSource.GetLayer(i).GetFeatureCount(True)
+            time.sleep(0.02)
 
         self.labelLoading.setText(
             u'Soubor {} úspěšně načten.'.format(label_text))
@@ -593,7 +601,7 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         return ids
 
     def showInfoAboutSelection(self):
-        layers = ["PAR", "BUD"]
+        layers = ["par", "BUD"]#["PAR", "BUD"]
         layerIds = {}
         for layer in layers:
             if layer in self.__mLoadedLayers:
@@ -602,7 +610,7 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
                 layerIds[layer] = self.__selectedIds(vectorLayer)
 
         self.vfkBrowser.showInfoAboutSelection(
-            layerIds["PAR"], layerIds["BUD"])
+            layerIds["par"], layerIds["BUD"])
 
     def showParInMap(self, ids):
         """
@@ -612,10 +620,10 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         """
         if self.actionShowInfoaboutSelection.isChecked():
             self.setSelectionChangedConnected(False)
-            self.showInMap(ids, "PAR")
+            self.showInMap(ids, "par")
             self.setSelectionChangedConnected(True)
         else:
-            self.showInMap(ids, "PAR")
+            self.showInMap(ids, "par")
 
     def showBudInMap(self, ids):
         """
