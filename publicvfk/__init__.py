@@ -3,9 +3,8 @@
 import os
 import sys
 import sqlite3
-import osgeo.gdal
 
-from osgeo import ogr, osr
+from osgeo import ogr, osr, gdal
 
 class VFKParBuilderError(Exception):
     pass
@@ -18,31 +17,42 @@ class VFKParBuilder:
         :raises VFKParBuilderError: if the database for writing is not connected
         """
         self.filename = os.path.splitext(filename)[0]
-
         self.dsn_vfk = ogr.Open(self.filename + '.vfk')
         # this hack is needed only for GDAL < 2.2
-        if osgeo.gdal.VersionInfo()<2020000:
+        if int(gdal.VersionInfo()) < 2020000:
             self.dsn_vfk.GetLayerByName('HP').GetFeature(1)
         if self.dsn_vfk is None:
             raise VFKParBuilderError('Nelze otevrit datasource')
         self.dsn_vfk = None
 
+        self.dbname = os.getenv('OGR_VFK_DB_NAME')
+        if self.dbname is None:
+            self.dbname = self.filename + '.db'
+        
         #add tables
         self.add_tables(os.path.join(
             os.path.dirname(__file__),
             'sql_commands',
             'add_HP_SBP_geom.sql'
         ))
-        
-        self.dsn_db = ogr.Open(self.filename + '.db', True)
+
+        self.dsn_db = ogr.Open(self.dbname, True)
         if self.dsn_db is None:
             raise VFKParBuilderError('Database in write mode is not connected')
+
+        if self.dsn_db.GetLayerByName('PAR'):
+            self.layer_par = None
+            return
+        
         # Set coordinate system
         srs = osr.SpatialReference()
         srs.ImportFromEPSG(5514)
         # New layer
         table = 'PAR'  # TASK:set capital letters, is it possible?
-        self.layer_par = self.dsn_db.CreateLayer(table, srs, ogr.wkbPolygon, ['OVERWRITE=YES'])
+        self.layer_par = self.dsn_db.CreateLayer(table, srs, ogr.wkbPolygon,
+                                                 ['OVERWRITE=YES',
+                                                  'LAUNDER=NO']    # force uppercase names (PAR, BUD)
+        )
         # Layer definition
         self.layer_par_def = self.layer_par.GetLayerDefn()
         # New fields - atributes "id_par", "kmenove_cislo_par", "poddeleni_cisla_par"
@@ -63,7 +73,7 @@ class VFKParBuilder:
 
         # zdroj: http://zetcode.com/db/sqlitepythontutorial/
         #Connect to db
-        db = sqlite3.connect(self.filename + '.db')
+        db = sqlite3.connect(self.dbname)
         if db is None:
             raise VFKParBuilderError('Databaze nepripojena')
         #New list to save parcel numbers
@@ -229,12 +239,18 @@ class VFKParBuilder:
         :param int limit: define amount of built parcels 
         :return: built parcels and corresponding parcel numbers all written in the source database 
         """
-
+        if self.layer_par is None:
+            return
+        
         counter = 0
 
         # get list of unique par ids
         parcels = self.get_par()
 
+        db = sqlite3.connect(self.dbname)
+        if db is None:
+            raise VFKParBuilderError('Database not connected')
+        
         #Start transaction
         self.layer_par.StartTransaction()
 
@@ -266,9 +282,6 @@ class VFKParBuilder:
             #Set id_par field
             value.SetField("id_par", par_id)
             #Set par number fields
-            db = sqlite3.connect(self.filename + '.db')
-            if db is None:
-                raise VFKParBuilderError('Database not connected')
             cur = db.cursor()
             cur.execute(
                 'SELECT distinct op.text FROM(SELECT par_id_1 as id FROM hp UNION SELECT par_id_2 as id from hp) uniq_par JOIN op ON op.par_id = uniq_par.id WHERE op.text is not null and par_id = {}'.format(
@@ -282,7 +295,7 @@ class VFKParBuilder:
                     value.SetField("poddeleni_cisla_par", row[0].split('/')[1])
                 else:
                     value.SetField("kmenove_cislo_par", row[0])
-            db.close()
+
             self.layer_par.CreateFeature(value)
             value = None
 
@@ -293,6 +306,8 @@ class VFKParBuilder:
 
         #End transaction
         self.layer_par.CommitTransaction()
+
+        db.close()
         #Unclosed
         #print ('The number of unclosed parcels: {}'.format(len(unclosed)))
         #Close database
@@ -309,7 +324,7 @@ class VFKParBuilder:
 
     def add_tables(self, sqlfileName):
         #Connection to the database
-        db = sqlite3.connect(self.filename + '.db')
+        db = sqlite3.connect(self.dbname)
         if db is None:
             raise VFKParBuilderError('Database not connected')
         #Adding tables

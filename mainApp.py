@@ -211,7 +211,7 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         self.vfkBrowser.goForth()
 
     def selectParInMap(self):
-        self.showInMap(self.vfkBrowser.currentParIds(), "par") #PAR
+        self.showInMap(self.vfkBrowser.currentParIds(), "PAR") #PAR
 
     def selectBudInMap(self):
         self.showInMap(self.vfkBrowser.currentBudIds(), "BUD")
@@ -379,9 +379,9 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         self.__mLoadedLayers.clear()
 
         if self.parCheckBox.isChecked():
-            self.__loadVfkLayer('par')
+            self.__loadVfkLayer('PAR')
         else:
-            self.__unLoadVfkLayer('par')
+            self.__unLoadVfkLayer('PAR')
 
         if self.budCheckBox.isChecked():
             self.__loadVfkLayer('BUD')
@@ -459,11 +459,13 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         name = layer.name()
         symbologyFile = ''
 
+        print 'x', name
         if name == 'PAR':
             symbologyFile = ':/parStyle.qml'
         elif name == 'BUD':
             symbologyFile = ':/budStyle.qml'
 
+        print 'y', symbologyFile
         errorMsg, resultFlag = layer.loadNamedStyle(symbologyFile)
 
         if not resultFlag:
@@ -531,21 +533,16 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
 
         t_par = self.__mOgrDataSource.GetLayerByName('PAR')
         #t_bud = self.__mOgrDataSource.GetLayerByName('BUD')
-        self.__mOgrDataSource = None
-
 
         if t_par == None:
-            object = VFKParBuilder(fileName)
-            object.build_all()
+            self.__mOgrDataSource = None
+            builder = VFKParBuilder(fileName)
+            builder.build_all()
             self.labelLoading.setText(
                 u'Data byla načtena pomocí rozšíření, které neobsažené bloky PAR a BUD sestavilo z neúplného VFK souboru.')
-
-        self.__mOgrDataSource = ogr.Open(
-            fileName, 0)  # 0 - datasource is open in read-only mode, there HAS TO be placed to build blocks PAR and BUD without connection to the db
-        #that is the reason why is the vfk opened twice
-        if t_par == None:
-            self.__mOgrDataSource = ogr.Open(os.path.splitext(fileName)[0]+'.db')
-
+            self.__mOgrDataSource = ogr.Open(os.environ['OGR_VFK_DB_NAME'], 0) 
+            self.__mDataSourceName = os.environ['OGR_VFK_DB_NAME']
+        
         layers_names = []
 
         layerCount = self.__mOgrDataSource.GetLayerCount()
@@ -558,7 +555,7 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
             u'Layernames jsou pripravene: {}'.format(layers_names))
 
         #if ('PAR' not in layers_names or 'BUD' not in layers_names) and len(self.__vfkLineEdits) == 1:
-        if 'par' not in layers_names and len(self.__vfkLineEdits) == 1:
+        if 'PAR' not in layers_names and len(self.__vfkLineEdits) == 1:
             self.__dataWithoutParBud()
             self.labelLoading.setText(
                 u'Data nemohla být načtena. Vstupní soubor neobsahuje bloky PAR a BUD.')
@@ -601,7 +598,7 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         return ids
 
     def showInfoAboutSelection(self):
-        layers = ["par", "BUD"]#["PAR", "BUD"]
+        layers = ["PAR", "BUD"]#["PAR", "BUD"]
         layerIds = {}
         for layer in layers:
             if layer in self.__mLoadedLayers:
@@ -610,7 +607,7 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
                 layerIds[layer] = self.__selectedIds(vectorLayer)
 
         self.vfkBrowser.showInfoAboutSelection(
-            layerIds["par"], layerIds["BUD"])
+            layerIds["PAR"], layerIds["BUD"])
 
     def showParInMap(self, ids):
         """
@@ -620,10 +617,10 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         """
         if self.actionShowInfoaboutSelection.isChecked():
             self.setSelectionChangedConnected(False)
-            self.showInMap(ids, "par")
+            self.showInMap(ids, "PAR")
             self.setSelectionChangedConnected(True)
         else:
-            self.showInMap(ids, "par")
+            self.showInMap(ids, "PAR")
 
     def showBudInMap(self, ids):
         """
