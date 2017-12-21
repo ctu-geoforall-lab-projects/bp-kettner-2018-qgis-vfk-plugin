@@ -18,11 +18,11 @@ class VFKParBuilder:
         """
         self.filename = os.path.splitext(filename)[0]
         self.dsn_vfk = ogr.Open(self.filename + '.vfk')
+        if self.dsn_vfk is None:
+            raise VFKParBuilderError('Nelze otevrit VFK soubor {}'.format(self.filename + '.vfk'))
         # this hack is needed only for GDAL < 2.2
         if int(gdal.VersionInfo()) < 2020000:
             self.dsn_vfk.GetLayerByName('HP').GetFeature(1)
-        if self.dsn_vfk is None:
-            raise VFKParBuilderError('Nelze otevrit datasource')
         self.dsn_vfk = None
 
         self.dbname = os.getenv('OGR_VFK_DB_NAME')
@@ -337,8 +337,11 @@ class VFKParBuilder:
         db.close()
 
 if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        sys.exit("{} soubor.vfk".format(sys.argv[0]))
+    
     #Funkcnost tridy
-    object = VFKParBuilder('600016.vfk')
+    object = VFKParBuilder(sys.argv[1])
     #object.get_par()
     #object.filter_hp(706860403)
     object.build_all()
