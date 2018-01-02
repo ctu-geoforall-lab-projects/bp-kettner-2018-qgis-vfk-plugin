@@ -7,13 +7,14 @@ from qgis.core import *
 
 from osgeo import ogr, osr, gdal
 
+
 class VFKParBuilderError(Exception):
     pass
 
 
 class VFKBuilder(object):
     def __init__(self, filename):
-        """Constructor VFKParBuilder
+        """Constructor VFKBuilder
 
         :param str filename: path to VFK file 
         :raises VFKParBuilderError: if the database for writing is not connected
@@ -47,50 +48,49 @@ class VFKBuilder(object):
             self.layer_par = None
             return
 
-    def build_par(self, list_hp):
-        """Build a geometry of number specified parcel in geometric way 
+    def build_bound(self, list_vertices):
+        """Build a geometry of specified boundary in geometric way 
 
-        :param int id_par: The number of parcel which the geometry is build
-        :param int list_hp: unsorted list of vertices forming par boundary
-        :return: polygon geometry on the specified parcel
+        :param list list_vertices: unsorted list of vertices forming boundary
+        :return: geometry poly_geom: geometry of the specified boundary
         """
 
-        def first_line(ring, list_hp):
+        def first_line(ring, list_vertices):
             # Add the first vertix and remove it from the list of vertices
-            vertix_1 = list_hp[0]
+            vertix_1 = list_vertices[0]
             for i in range(len(vertix_1)):
                 bod = vertix_1[i]
                 ring.AddPoint(bod[0], bod[1])
-            list_hp.pop(0)
+            list_vertices.pop(0)
 
         # Create a ring
         rings = []
         rings.append(ogr.Geometry(ogr.wkbLinearRing))
         ring = rings[0]
-        first_line(ring, list_hp)
+        first_line(ring, list_vertices)
 
         # Adding the next vertix
         # Searching for the end point of the ring in the list of vertices - the first searched point
         search = (ring.GetX(ring.GetPointCount() - 1), ring.GetY(ring.GetPointCount() - 1))  # end point
-        while len(list_hp) > 0:  # it runs till list_hp contains vertices
-            count1 = len(list_hp)
-            for position in range(len(list_hp)):  # position-shows the position of added vertice in list_hp
-                if search in list_hp[position]:
-                    if (list_hp[position].index(search)) == 0:  # the vertix has the same orientation as the first added
-                        self.add_boundary(position, 'front', list_hp, ring)
+        while len(list_vertices) > 0:  # it runs till list_vertices contains vertices
+            count1 = len(list_vertices)
+            for position in range(len(list_vertices)):  # position-shows the position of added vertice in list_vertices
+                if search in list_vertices[position]:
+                    if (list_vertices[position].index(search)) == 0:  # the vertix has the same orientation as the first added
+                        self.add_boundary(position, 'front', list_vertices, ring)
                         search = (ring.GetX(ring.GetPointCount() - 1), ring.GetY(ring.GetPointCount() - 1))
                         break
-                    if (list_hp[position].index(search)) > 0:  # the vertix has opposite orientation
-                        self.add_boundary(position, 'back', list_hp, ring)
+                    if (list_vertices[position].index(search)) > 0:  # the vertix has opposite orientation
+                        self.add_boundary(position, 'back', list_vertices, ring)
                         search = (ring.GetX(ring.GetPointCount() - 1), ring.GetY(ring.GetPointCount() - 1))
                         break
             # Test if there is another ring
-            count2 = len(list_hp)
+            count2 = len(list_vertices)
             if count1 == count2:
                 # no match, create new ring
                 rings.append(ogr.Geometry(ogr.wkbLinearRing))
                 ring = rings[-1]
-                first_line(ring, list_hp)
+                first_line(ring, list_vertices)
                 search = (ring.GetX(ring.GetPointCount() - 1), ring.GetY(ring.GetPointCount() - 1))
                 # print 'Hledam', search
         # Test of closed polygons
@@ -132,14 +132,14 @@ class VFKBuilder(object):
                 outRing = rings[minX_i]  # ring with the biggest envelope is outRing
                 rings.pop(minX_i)
                 innerRings = rings  # the rest in rings are innerRings(holes)
-                # else:
-                # print 'Indexes do not match'
-            # Create a polygon with holes
-            poly_geom = ogr.Geometry(ogr.wkbPolygon)
-            poly_geom.AddGeometry(outRing)
-            for holes in innerRings:
-                poly_geom.AddGeometry(holes)
-            return poly_geom
+                # Create a polygon with holes
+                poly_geom = ogr.Geometry(ogr.wkbPolygon)
+                poly_geom.AddGeometry(outRing)
+                for holes in innerRings:
+                    poly_geom.AddGeometry(holes)
+                return poly_geom
+            else:
+                return None
 
         else:
             # Create a polygon
@@ -147,17 +147,17 @@ class VFKBuilder(object):
             poly_geom.AddGeometry(ring)
             return poly_geom
 
-    def add_boundary(self, position, direction, list_hp, ring):
-        """Add the vertice to the END of ring(geometry of the parcel) 
+    def add_boundary(self, position, direction, list_vertices, ring):
+        """Add the vertix point by point to the END of ring(geometry of the parcel) 
 
-        :param int position: shows the position of added vertix in the list_hp
+        :param int position: shows the position of added vertix in the list_vertices
         :param str direction: specifies vertix direction - 'front' or 'back'
-        :param int list_hp: list of unsorted and both direction geometric vertices for specified parcel number
-        :param geometry ring: geometry of the parcel that is built #jaky typ u geometrie?
-        :return: the ring with added vertix
+        :param int list_vertices: list of unsorted and both direction geometric vertices for specified boundary
+        :param geometry ring: geometry of the boundary that is built #jaky typ u geometrie?
+        :return: geometry ring: the ring with added vertix
         """
 
-        vertices = list_hp[position]
+        vertices = list_vertices[position]
         if direction == 'front':
             for i in range(1, len(vertices)):
                 point = vertices[i]
@@ -166,14 +166,14 @@ class VFKBuilder(object):
             for i in range(len(vertices) - 2, -1, -1):
                 point = vertices[i]
                 ring.AddPoint(point[0], point[1])
-        list_hp.pop(position)
+        list_vertices.pop(position)
 
         return ring
 
     def get_sql_commands_from_file(self, fileName):
         """Load sql commands from file
 
-        :param fileName: path to the file with sql commands
+        :param str fileName: path to the file with sql commands
         :return: sql commands
         """
         file = open(fileName, 'r')
@@ -186,7 +186,7 @@ class VFKBuilder(object):
     def add_tables(self, sqlfileName):
         """Add tables to the database by sql commands
 
-        :param sqlfileName: path to the file with sql commands
+        :param str sqlfileName: path to the file with sql commands
         :return: added tables in the database
         """
         # Connection to the database
@@ -196,7 +196,6 @@ class VFKBuilder(object):
         # Adding tables
         cur = db.cursor()
         sqlCommands = self.get_sql_commands_from_file(sqlfileName)
-        # print 'Pocet prikazu', len(sqlCommands)
         for command in sqlCommands:
             cur.execute(command)
         db.commit()  # without commit it does not write data from the last sql command
@@ -204,7 +203,11 @@ class VFKBuilder(object):
 
 class VFKParBuilder(VFKBuilder):
     def __init__(self, filename):
-        VFKBuilder.__init__(self,filename)
+        """Constructor VFKParBuilder
+
+        :param str filename: path to VFK file 
+        """
+        VFKBuilder.__init__(self, filename)
         # Set coordinate system
         srs = osr.SpatialReference()
         srs.ImportFromEPSG(5514)
@@ -212,7 +215,7 @@ class VFKParBuilder(VFKBuilder):
         table = 'PAR'
         self.layer_par = self.dsn_db.CreateLayer(table, srs, ogr.wkbPolygon,
                                                  ['OVERWRITE=YES',
-                                                  'LAUNDER=NO']# force uppercase names (PAR, BUD)
+                                                  'LAUNDER=NO']  # force uppercase names (PAR, BUD)
                                                  )
         # Layer definition
         self.layer_par_def = self.layer_par.GetLayerDefn()
@@ -254,30 +257,30 @@ class VFKParBuilder(VFKBuilder):
     def filter_hp(self, id_par):
         """Form a list of vertices for number specified parcel
 
-        :param int id_par: The id number of parcel is looking for the boundaries
+        :param int id_par: The id number of parcel is looking for vertices(geomatry)
         :return: list of unsorted and both direction vertices for specified parcel number
-        :raises VFKParBuilderError: if vfk source file in not connected
+        :raises VFKParBuilderError: if layer 'HP' is not in the source database
         """
 
-        # DataSource
         # Data in layer HP
         lyr_hp = self.dsn_db.GetLayerByName('HP')
         if lyr_hp is None:
-            raise VFKParBuilderError('Nelze nacist vrstvu HP')
-        # Filter of vertices on specified parcel
+            raise VFKParBuilderError('Layer HP is empty')
+        # Filter of vertices on specified parcel id
         hp_list = []
         lyr_hp.SetAttributeFilter("PAR_ID_1 = '{0}' or PAR_ID_2 = '{0}'".format(id_par))
         for feat in lyr_hp:
             hp_list.append(feat)
         lyr_hp.SetAttributeFilter(None)
 
-        return hp_list  # jen prvky ve vrstve, nikoliv geometrie (ta je oznacena list_hp)
+        return hp_list  # just features in layer, no geometry(geometry in list_vertices) (jen prvky ve vrstve, nikoliv geometrie (ta je oznacena list_vertices))
 
     def build_all_par(self, limit=None):
-        """Build the boundaries of specified amount of parcels according to the unique list of parcel ids and write them in to the database
+        """Build the boundaries of specified amount of parcels
+         according to the unique list of parcel ids and write them into the database
 
-        :param int limit: define amount of built parcels 
-        :return: built parcels and corresponding parcel numbers all written in the source database 
+        :param int limit: define amount of built parcels, default is None - no limit
+        :return: built parcel geometries and corresponding parcel numbers are written in the source database 
         """
         if self.layer_par is None:
             return
@@ -300,14 +303,14 @@ class VFKParBuilder(VFKBuilder):
         for par_id in parcels:
             # print("{}/{} ".format(idx, count))
             idx += 1
-
-            list_hp = []  # vytvoreni prazdneho seznamu pro ulozeni hranic sestavovane parcely
+            # create empty list to save the boundaries of built parcel
+            list_vertices = []  # vytvoreni prazdneho seznamu pro ulozeni hranic sestavovane parcely
             # collect unsorted list of vertices forming par boundary
             for feature in self.filter_hp(par_id):
                 geom = feature.GetGeometryRef()
-                list_hp.append(geom.GetPoints())  # seznam hranic parcel - jiz geometrie
+                list_vertices.append(geom.GetPoints())  # list of parcel boundaries - already geometry(seznam hranic parcel - jiz geometrie)
             # Create par geometry
-            poly_geom = self.build_par(list_hp)
+            poly_geom = self.build_bound(list_vertices)
             if poly_geom is not None:
                 # Convert to 2D
                 poly_geom.FlattenTo2D()
@@ -355,6 +358,10 @@ class VFKParBuilder(VFKBuilder):
 
 class VFKBudBuilder(VFKBuilder):
     def __init__(self, filename):
+        """Constructor VFKBuilder
+
+        :param str filename: path to VFK file 
+        """
         VFKBuilder.__init__(self, filename)
         # Set coordinate system
         srs = osr.SpatialReference()
@@ -371,14 +378,19 @@ class VFKBudBuilder(VFKBuilder):
         self.dsn_vfk = None
 
     def get_bud_id(self):
-        #Connect to db
+        """Get unique bud_id numbers from the table 'OB' (amount of buildings)
+         and corresponding id from the table 'OB' (ids of points which make one boundary)
+
+        :return: uniq list of bud_id numbers and list of lists ids of points for each bud_id
+        """
+        # Connect to db
         db = sqlite3.connect(self.filename + '.db')
         if db is None:
             raise VFKParBuilderError('Databaze nepripojena')
-        #New list to save building ids
+        # New list to save building ids
         bud_id = []
         cur = db.cursor()
-        #Unique list of bud_id
+        # Unique list of bud_id
         cur.execute('SELECT distinct bud_id FROM ob')
         while True:
             row = cur.fetchone()
@@ -386,11 +398,11 @@ class VFKBudBuilder(VFKBuilder):
                 break
             bud_id.append(row[0])
         ids = []
-        for idx  in bud_id:
+        for idx in bud_id:
             list_id = []
             cur = db.cursor()
-            #List of ob-id for each building
-            cur.execute('SELECT id FROM ob WHERE bud_id = {0} and typppd_kod = 21700'.format(idx)) #or column obrbud_type = 'OB'
+            # List of ob-id for each building
+            cur.execute('SELECT id FROM ob WHERE bud_id = {0} and typppd_kod = 21700'.format(idx))  # or column obrbud_type = 'OB'
             while True:
                 row2 = cur.fetchone()
                 if row2 == None:
@@ -402,13 +414,17 @@ class VFKBudBuilder(VFKBuilder):
         return ids, bud_id
 
     def filter_sbp(self, ob_id):
-        # DataSource
+        """Form a list of vertices for number(ob_id) specified building
+
+        :param int ob_id: unique building number for which is looking for the points(geometry)
+        :return: list of unsorted and both direction vertices for number specified building
+        """
         # Data in layer SBP
         lyr_sbp = self.dsn_db.GetLayerByName('SBP')
         if lyr_sbp is None:
             raise VFKParBuilderError('Nelze nacist vrstvu SBP')
         sbp_list = []
-        #extremly slow search, must go through 37508 rows
+        # extremly slow search, must go through 37508 rows
         lyr_sbp.SetAttributeFilter("OB_ID = '{0}' and PORADOVE_CISLO_BODU = '{1}'".format(ob_id, 1))
         for feat in lyr_sbp:
             sbp_list.append(feat)
@@ -417,47 +433,54 @@ class VFKBudBuilder(VFKBuilder):
         return sbp_list
 
     def build_all_bud(self, limit=None):
+        """Build the boundaries of specified amount of buildings
+         according to the unique list of building ids and write them into the database
 
+        :param int limit: define amount of built buildings, default is None - no limit
+        :return: built building geometries and corresponding building identification numbers are written in the source database
+        """
         counter_bul = 0
+        # Unique building identification numbers
         ids = self.get_bud_id()[0]
+        # List of lists with points that belong to one unique bud_id
         bud_id = self.get_bud_id()[1]
         # Start transaction
         self.layer_bud.StartTransaction()
 
-        #Unclosed buildings
+        # Unclosed buildings
         unclosed_bul = []
         for i in range(len(ids)):
             building = bud_id[i]
             lines = ids[i]
             list_sbp = []
-            #print 'idecka jedne budovy',lines
+            # print 'idecka jedne budovy',lines
             for line in lines:
                 for feature in self.filter_sbp(line):
                     geom = feature.GetGeometryRef()
                     list_sbp.append(geom.GetPoints())
-            #print 'ID pocitadlo', counter_id
-            #Create bud geometry
-            poly_geom = self.build_par(list_sbp)
+            # print 'ID pocitadlo', counter_id
+            # Create bud geometry
+            poly_geom = self.build_bound(list_sbp)
             if poly_geom is not None:
-                #Convert to 2D
+                # Convert to 2D
                 poly_geom.FlattenTo2D()
             else:
                 unclosed_bul.append(building)
 
-            #WRITE TO DATABASE
+            # WRITE TO DATABASE
             # Create the feature
             value = ogr.Feature(self.layer_bud_def)
             # Set geometry
             value.SetGeometry(poly_geom)
-            #print("Cislo zapsane budovy: {} ".format(building))
+            # print("Cislo zapsane budovy: {} ".format(building))
             # Set id_par field
             value.SetField("id_bud", building)
             self.layer_bud.CreateFeature(value)
             value = None
             # print 'Lomove body pro jednu budovu',list_sbp
-            #print (building, poly_geom.ExportToWkt())
+            # print (building, poly_geom.ExportToWkt())
             counter_bul += 1
-            #print ('Sestavena budova cislo {}.'.format(counter_bul))
+            # print ('Sestavena budova cislo {}.'.format(counter_bul))
             if limit and counter_bul > limit:
                 break
         # End transaction
