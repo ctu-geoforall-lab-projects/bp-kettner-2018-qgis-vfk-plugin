@@ -166,14 +166,17 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
 
         self.vfkBrowser.showHelpPage()
 
+        self.settings = QSettings("CTU", "VFK plugin")
+
     def browseButton_clicked(self, browseButton_id=1):
         """
         :param browseButton_id: ID of clicked browse button.
         :return:
         """
         title = u'Načti soubor VFK'
-        settings = QSettings()
-        lastUsedDir = ''
+        #settings = QSettings("CTU", "VFK plugin")
+        sender = u'{}-lastUserFilePath'.format(self.sender().objectName())
+        lastUsedDir = self.settings.value(sender, '')
 
         if self.__source_for_data == 'file':
             ext = '*.vfk'
@@ -187,10 +190,11 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
             else:
                 self.__fileName.append(loaded_file)
                 if browseButton_id == 1:
-                    self.vfkFileLineEdit.setText(self.__fileName[0])
+                    self.vfkFileLineEdit.setText(self.__fileName[-1])
                 else:
                     self.__vfkLineEdits['vfkLineEdit_{}'.format(len(self.__vfkLineEdits))].setText(
                         self.__fileName[browseButton_id - 1])
+                self.settings.setValue(sender, os.path.dirname(loaded_file))
         elif self.__source_for_data == 'directory':
             loaded_file = QFileDialog.getExistingDirectory(self, u"Vyberte adresář s daty VFK")
             if not loaded_file:
@@ -322,8 +326,8 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         else:
             new_database_name = '{}_stav.db'.format(os.path.basename(self.__fileName[0]).split('.')[0])
 
-        os.environ['OGR_VFK_DB_NAME'] = os.path.join(
-            os.path.dirname(os.path.dirname(self.__fileName[0])), new_database_name)
+        os.environ['OGR_VFK_DB_NAME'] = os.path.normpath(os.path.join(
+            os.path.dirname(os.path.dirname(self.__fileName[0])), new_database_name))
         self.__mDataSourceName = self.__fileName[0]     # os.environ['OGR_VFK_DB_NAME']
 
         QgsApplication.processEvents()
@@ -524,6 +528,7 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
 
         QgsApplication.processEvents()
 
+        QgsMessageLog.logMessage('Tady{}'.format(os.environ['OGR_VFK_DB_NAME']), 'X to je jedno', QgsMessageLog.INFO)
         self.__mOgrDataSource = ogr.Open(
             fileName, 0)   # 0 - datasource is open in read-only mode
 
@@ -536,8 +541,12 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
 
         if t_par == None:
             self.__mOgrDataSource = None
-            builder = VFKParBuilder(fileName)
-            builder.build_all()
+            # Build Parcels
+            parcels = VFKParBuilder(fileName)
+            parcels.build_all_par()
+            # Build Buildings
+            #buildings = VFKBudBuilder(fileName)
+            #buildings.build_all_bud()
             self.labelLoading.setText(
                 u'Data byla načtena pomocí rozšíření, které neobsažené bloky PAR a BUD sestavilo z neúplného VFK souboru.')
             self.__mOgrDataSource = ogr.Open(os.environ['OGR_VFK_DB_NAME'], 0) 
