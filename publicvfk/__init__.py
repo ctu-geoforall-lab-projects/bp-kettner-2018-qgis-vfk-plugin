@@ -8,7 +8,7 @@ from qgis.core import *
 from osgeo import ogr, osr, gdal
 
 
-class VFKParBuilderError(Exception):
+class VFKBuilderError(Exception):
     pass
 
 
@@ -17,13 +17,13 @@ class VFKBuilder(object):
         """Constructor VFKBuilder
 
         :param str filename: path to VFK file 
-        :raises VFKParBuilderError: if the database for writing is not connected
+        :raises VFKBuilderError: if the database for writing is not connected
         """
         self.filename = os.path.splitext(filename)[0]
         # QgsMessageLog.logMessage('X{}'.format(os.environ['OGR_VFK_DB_NAME']), 'X to je jedno', QgsMessageLog.INFO)
         self.dsn_vfk = ogr.Open(self.filename + '.vfk')
         if self.dsn_vfk is None:
-            raise VFKParBuilderError('Nelze otevrit VFK soubor {}'.format(self.filename + '.vfk'))
+            raise VFKBuilderError('Nelze otevrit VFK soubor {}'.format(self.filename + '.vfk'))
         # this hack is needed only for GDAL < 2.2
         if int(gdal.VersionInfo()) < 2020000:
             self.dsn_vfk.GetLayerByName('HP').GetFeature(1)
@@ -42,7 +42,7 @@ class VFKBuilder(object):
 
         self.dsn_db = ogr.Open(self.dbname, True)
         if self.dsn_db is None:
-            raise VFKParBuilderError('Database in write mode is not connected')
+            raise VFKBuilderError('Database in write mode is not connected')
 
         if self.dsn_db.GetLayerByName('PAR'):
             self.layer_par = None
@@ -192,7 +192,7 @@ class VFKBuilder(object):
         # Connection to the database
         db = sqlite3.connect(self.dbname)
         if db is None:
-            raise VFKParBuilderError('Database not connected')
+            raise VFKBuilderError('Database is not connected')
         # Adding tables
         cur = db.cursor()
         sqlCommands = self.get_sql_commands_from_file(sqlfileName)
@@ -232,14 +232,14 @@ class VFKParBuilder(VFKBuilder):
         """Form a unique list of parcel ids by SQL command
 
         :return: list of parcels
-        :raises VFKParBuilderError: if the db file is not exist in the directory
+        :raises VFKBuilderError: if the db file is not exist in the directory
         """
 
         # zdroj: http://zetcode.com/db/sqlitepythontutorial/
         # Connect to db
         db = sqlite3.connect(self.dbname)
         if db is None:
-            raise VFKParBuilderError('Databaze nepripojena')
+            raise VFKBuilderError('Database is not connected')
         # New list to save parcel numbers
         parcels = []
 
@@ -259,13 +259,13 @@ class VFKParBuilder(VFKBuilder):
 
         :param int id_par: The id number of parcel is looking for vertices(geomatry)
         :return: list of unsorted and both direction vertices for specified parcel number
-        :raises VFKParBuilderError: if layer 'HP' is not in the source database
+        :raises VFKBuilderError: if layer 'HP' is not in the source database
         """
 
         # Data in layer HP
         lyr_hp = self.dsn_db.GetLayerByName('HP')
         if lyr_hp is None:
-            raise VFKParBuilderError('Layer HP is empty')
+            raise VFKBuilderError('Layer HP is empty or not connected')
         # Filter of vertices on specified parcel id
         hp_list = []
         lyr_hp.SetAttributeFilter("PAR_ID_1 = '{0}' or PAR_ID_2 = '{0}'".format(id_par))
@@ -292,7 +292,7 @@ class VFKParBuilder(VFKBuilder):
 
         db = sqlite3.connect(self.dbname)
         if db is None:
-            raise VFKParBuilderError('Database not connected')
+            raise VFKBuilderError('Database is not connected')
 
         # Start transaction
         self.layer_par.StartTransaction()
@@ -386,7 +386,7 @@ class VFKBudBuilder(VFKBuilder):
         # Connect to db
         db = sqlite3.connect(self.filename + '.db')
         if db is None:
-            raise VFKParBuilderError('Databaze nepripojena')
+            raise VFKBuilderError('Database is not connected')
         # New list to save building ids
         bud_id = []
         cur = db.cursor()
@@ -422,7 +422,7 @@ class VFKBudBuilder(VFKBuilder):
         # Data in layer SBP
         lyr_sbp = self.dsn_db.GetLayerByName('SBP')
         if lyr_sbp is None:
-            raise VFKParBuilderError('Nelze nacist vrstvu SBP')
+            raise VFKBuilderError('Layer SBP is empty or not connected')
         sbp_list = []
         # extremly slow search, must go through 37508 rows
         lyr_sbp.SetAttributeFilter("OB_ID = '{0}' and PORADOVE_CISLO_BODU = '{1}'".format(ob_id, 1))
