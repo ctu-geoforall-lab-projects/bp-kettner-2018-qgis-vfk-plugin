@@ -39,7 +39,8 @@ from searchFormController import *
 from openThread import *
 from applyChanges import *
 from publicvfk import VFKParBuilder
-from publicvfk import VFKParBuilderError
+from publicvfk import VFKBudBuilder
+from publicvfk import VFKBuilderError
 
 
 class VFKError(StandardError):
@@ -528,7 +529,7 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
 
         QgsApplication.processEvents()
 
-        QgsMessageLog.logMessage('Tady{}'.format(os.environ['OGR_VFK_DB_NAME']), 'X to je jedno', QgsMessageLog.INFO)
+        QgsMessageLog.logMessage('Tady, line 531: {0} a kam ukazuje tohle: {1}'.format(os.environ['OGR_VFK_DB_NAME'], self.__mDataSourceName), 'Zprava o chybe zde', QgsMessageLog.INFO)
         self.__mOgrDataSource = ogr.Open(
             fileName, 0)   # 0 - datasource is open in read-only mode
 
