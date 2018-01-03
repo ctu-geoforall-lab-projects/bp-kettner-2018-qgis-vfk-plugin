@@ -547,8 +547,8 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
             parcels = VFKParBuilder(fileName)
             parcels.build_all_par()
             # Build Buildings
-            #buildings = VFKBudBuilder(fileName)
-            #buildings.build_all_bud()
+            buildings = VFKBudBuilder(fileName)
+            buildings.build_all_bud()
             self.labelLoading.setText(
                 u'Data byla načtena pomocí rozšíření, které neobsažené bloky PAR a BUD sestavilo z neúplného VFK souboru.')
             self.__mOgrDataSource = ogr.Open(os.environ['OGR_VFK_DB_NAME'], 0) 
