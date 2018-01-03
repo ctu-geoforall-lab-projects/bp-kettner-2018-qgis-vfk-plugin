@@ -329,7 +329,7 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
 
         os.environ['OGR_VFK_DB_NAME'] = os.path.normpath(os.path.join(
             os.path.dirname(os.path.dirname(self.__fileName[0])), new_database_name))
-        gdal.setConfigOption('OGR_VFK_DB_NAME', str(os.environ['OGR_VFK_DB_NAME']))
+        gdal.SetConfigOption('OGR_VFK_DB_NAME', str(os.environ['OGR_VFK_DB_NAME']))
         self.__mDataSourceName = self.__fileName[0]     # os.environ['OGR_VFK_DB_NAME']
 
         QgsApplication.processEvents()
