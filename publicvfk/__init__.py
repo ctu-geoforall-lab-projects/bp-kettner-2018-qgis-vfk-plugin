@@ -44,10 +44,6 @@ class VFKBuilder(object):
         if self.dsn_db is None:
             raise VFKBuilderError('Database in write mode is not connected')
 
-        if self.dsn_db.GetLayerByName('PAR'):
-            self.layer_par = None
-            return
-
     def build_bound(self, list_vertices):
         """Build a geometry of specified boundary in geometric way 
 
@@ -277,7 +273,10 @@ class VFKParBuilder(VFKBuilder):
         self.layer_par.CreateField(idField)
         self.layer_par.CreateField(kmenField)
         self.layer_par.CreateField(podField)
-        self.dsn_vfk = None
+
+        if self.dsn_db.GetLayerByName('PAR'):
+            self.layer_par = None
+            return
 
     def build_all_par(self, limit=None):
         """Build the boundaries of specified amount of parcels
@@ -379,7 +378,6 @@ class VFKBudBuilder(VFKBuilder):
         # New field - atribute "id_bud"
         idField = ogr.FieldDefn("id_bud", ogr.OFTInteger)
         self.layer_bud.CreateField(idField)
-        self.dsn_vfk = None
 
     def build_all_bud(self, limit=None):
         """Build the boundaries of specified amount of buildings
