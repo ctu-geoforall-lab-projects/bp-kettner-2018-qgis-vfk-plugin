@@ -201,6 +201,57 @@ class VFKBuilder(object):
         db.commit()  # without commit it does not write data from the last sql command
         db.close()
 
+    def filter_layer(self, lyr_name, filter1, filter2, id1, id2=None):
+        """Form a list of vertices based on filter and layer name
+
+        :param str lyr_name: name of the layer
+        :param str filter1: the first part of filter
+        :param str filter2: the second part of filter
+        :param int id1: value for the first filter
+        :param int id2: value for the second filter, optional
+        :return: list of values
+        :raises VFKBuilderError: if required layer is not in the source database or is empty
+        """
+        # Data in layer
+        layer = self.dsn_db.GetLayerByName(lyr_name)
+        if layer is None:
+            raise VFKBuilderError('Required layer is empty or not connected')
+            # Filter of vertices on specified parcel id
+        layer_values = []
+        if id2 is not None:
+            layer.SetAttributeFilter("{0}'{2}'{1}'{3}'".format(filter1, filter2, id1, 1))
+        else:
+            layer.SetAttributeFilter("{0}'{2}'{1}'{2}'".format(filter1, filter2, id1))
+        for feat in layer:
+            layer_values.append(feat)
+        layer.SetAttributeFilter(None)  # it is needed?
+
+        return layer_values
+
+    def executeSQL(self, SQLcommand):
+        """Return values according to SQL command
+
+        :param str SQLcommand: executed SQL command
+        :return: list of values
+        :raises VFKBuilderError: if database is not connected
+        """
+        # Connect to db
+        db = sqlite3.connect(self.dbname)
+        if db is None:
+            raise VFKBuilderError('Database is not connected')
+        # New list to save values
+        values_returned = []
+        cur = db.cursor()
+        cur.execute(SQLcommand)
+        while True:
+            row = cur.fetchone()
+            if row == None:
+                break
+            values_returned.append(row[0])
+        db.close()
+
+        return values_returned
+
 class VFKParBuilder(VFKBuilder):
     def __init__(self, filename):
         """Constructor VFKParBuilder
@@ -228,53 +279,6 @@ class VFKParBuilder(VFKBuilder):
         self.layer_par.CreateField(podField)
         self.dsn_vfk = None
 
-    def get_par(self):
-        """Form a unique list of parcel ids by SQL command
-
-        :return: list of parcels
-        :raises VFKBuilderError: if the db file is not exist in the directory
-        """
-
-        # zdroj: http://zetcode.com/db/sqlitepythontutorial/
-        # Connect to db
-        db = sqlite3.connect(self.dbname)
-        if db is None:
-            raise VFKBuilderError('Database is not connected')
-        # New list to save parcel numbers
-        parcels = []
-
-        cur = db.cursor()
-        cur.execute('SELECT par_id_1 as id FROM hp UNION SELECT par_id_2 as id from hp')
-        while True:
-            row = cur.fetchone()
-            if row == None:
-                break
-            parcels.append(row[0])
-        db.close()
-
-        return parcels
-
-    def filter_hp(self, id_par):
-        """Form a list of vertices for number specified parcel
-
-        :param int id_par: The id number of parcel is looking for vertices(geomatry)
-        :return: list of unsorted and both direction vertices for specified parcel number
-        :raises VFKBuilderError: if layer 'HP' is not in the source database
-        """
-
-        # Data in layer HP
-        lyr_hp = self.dsn_db.GetLayerByName('HP')
-        if lyr_hp is None:
-            raise VFKBuilderError('Layer HP is empty or not connected')
-        # Filter of vertices on specified parcel id
-        hp_list = []
-        lyr_hp.SetAttributeFilter("PAR_ID_1 = '{0}' or PAR_ID_2 = '{0}'".format(id_par))
-        for feat in lyr_hp:
-            hp_list.append(feat)
-        lyr_hp.SetAttributeFilter(None)
-
-        return hp_list  # just features in layer, no geometry(geometry in list_vertices) (jen prvky ve vrstve, nikoliv geometrie (ta je oznacena list_vertices))
-
     def build_all_par(self, limit=None):
         """Build the boundaries of specified amount of parcels
          according to the unique list of parcel ids and write them into the database
@@ -288,7 +292,7 @@ class VFKParBuilder(VFKBuilder):
         counter = 0
 
         # get list of unique par ids
-        parcels = self.get_par()
+        parcels = self.executeSQL('SELECT par_id_1 as id FROM hp UNION SELECT par_id_2 as id from hp')
 
         db = sqlite3.connect(self.dbname)
         if db is None:
@@ -306,7 +310,7 @@ class VFKParBuilder(VFKBuilder):
             # create empty list to save the boundaries of built parcel
             list_vertices = []  # vytvoreni prazdneho seznamu pro ulozeni hranic sestavovane parcely
             # collect unsorted list of vertices forming par boundary
-            for feature in self.filter_hp(par_id):
+            for feature in self.filter_layer('HP','PAR_ID_1 = ',' or PAR_ID_2 = ',par_id):
                 geom = feature.GetGeometryRef()
                 list_vertices.append(geom.GetPoints())  # list of parcel boundaries - already geometry(seznam hranic parcel - jiz geometrie)
             # Create par geometry
@@ -377,61 +381,6 @@ class VFKBudBuilder(VFKBuilder):
         self.layer_bud.CreateField(idField)
         self.dsn_vfk = None
 
-    def get_bud_id(self):
-        """Get unique bud_id numbers from the table 'OB' (amount of buildings)
-         and corresponding id from the table 'OB' (ids of points which make one boundary)
-
-        :return: uniq list of bud_id numbers and list of lists ids of points for each bud_id
-        """
-        # Connect to db
-        db = sqlite3.connect(self.filename + '.db')
-        if db is None:
-            raise VFKBuilderError('Database is not connected')
-        # New list to save building ids
-        bud_id = []
-        cur = db.cursor()
-        # Unique list of bud_id
-        cur.execute('SELECT distinct bud_id FROM ob')
-        while True:
-            row = cur.fetchone()
-            if row == None:
-                break
-            bud_id.append(row[0])
-        ids = []
-        for idx in bud_id:
-            list_id = []
-            cur = db.cursor()
-            # List of ob-id for each building
-            cur.execute('SELECT id FROM ob WHERE bud_id = {0} and typppd_kod = 21700'.format(idx))  # or column obrbud_type = 'OB'
-            while True:
-                row2 = cur.fetchone()
-                if row2 == None:
-                    break
-                list_id.append(row2[0])
-            ids.append(list_id)
-        db.close()
-
-        return ids, bud_id
-
-    def filter_sbp(self, ob_id):
-        """Form a list of vertices for number(ob_id) specified building
-
-        :param int ob_id: unique building number for which is looking for the points(geometry)
-        :return: list of unsorted and both direction vertices for number specified building
-        """
-        # Data in layer SBP
-        lyr_sbp = self.dsn_db.GetLayerByName('SBP')
-        if lyr_sbp is None:
-            raise VFKBuilderError('Layer SBP is empty or not connected')
-        sbp_list = []
-        # extremly slow search, must go through 37508 rows
-        lyr_sbp.SetAttributeFilter("OB_ID = '{0}' and PORADOVE_CISLO_BODU = '{1}'".format(ob_id, 1))
-        for feat in lyr_sbp:
-            sbp_list.append(feat)
-        lyr_sbp.SetAttributeFilter(None)
-
-        return sbp_list
-
     def build_all_bud(self, limit=None):
         """Build the boundaries of specified amount of buildings
          according to the unique list of building ids and write them into the database
@@ -441,21 +390,24 @@ class VFKBudBuilder(VFKBuilder):
         """
         counter_bul = 0
         # Unique building identification numbers
-        ids = self.get_bud_id()[0]
+        bud_id = self.executeSQL('SELECT distinct bud_id FROM ob')
         # List of lists with points that belong to one unique bud_id
-        bud_id = self.get_bud_id()[1]
+        ids_building = []
+        for idx in bud_id:
+            list_id = self.executeSQL('SELECT id FROM ob WHERE bud_id = {0} and typppd_kod = 21700'.format(idx))
+            ids_building.append(list_id)
         # Start transaction
         self.layer_bud.StartTransaction()
 
         # Unclosed buildings
         unclosed_bul = []
-        for i in range(len(ids)):
+        for i in range(len(ids_building)):
             building = bud_id[i]
-            lines = ids[i]
+            lines = ids_building[i]
             list_sbp = []
             # print 'idecka jedne budovy',lines
             for line in lines:
-                for feature in self.filter_sbp(line):
+                for feature in self.filter_layer('SBP', 'OB_ID = ', ' and PORADOVE_CISLO_BODU = ',line,1):
                     geom = feature.GetGeometryRef()
                     list_sbp.append(geom.GetPoints())
             # print 'ID pocitadlo', counter_id
