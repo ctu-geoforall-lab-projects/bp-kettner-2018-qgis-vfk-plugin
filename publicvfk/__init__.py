@@ -258,6 +258,10 @@ class VFKParBuilder(VFKBuilder):
         # Set coordinate system
         srs = osr.SpatialReference()
         srs.ImportFromEPSG(5514)
+        # Test if database contains layer PAR after adding tables geometry columns
+        if self.dsn_db.GetLayerByName('PAR').GetFeature(1):
+            self.layer_par = None
+            return
         # New layer
         table = 'PAR'
         self.layer_par = self.dsn_db.CreateLayer(table, srs, ogr.wkbPolygon,
@@ -273,10 +277,6 @@ class VFKParBuilder(VFKBuilder):
         self.layer_par.CreateField(idField)
         self.layer_par.CreateField(kmenField)
         self.layer_par.CreateField(podField)
-
-        if self.dsn_db.GetLayerByName('PAR'):
-            self.layer_par = None
-            return
 
     def build_all_par(self, limit=None):
         """Build the boundaries of specified amount of parcels
@@ -369,6 +369,10 @@ class VFKBudBuilder(VFKBuilder):
         # Set coordinate system
         srs = osr.SpatialReference()
         srs.ImportFromEPSG(5514)
+        # Test if database contains layer BUD after adding tables geometry columns
+        if self.dsn_db.GetLayerByName('BUD').GetFeature(1):
+            self.layer_bud = None
+            return
         # New layer
         table = 'BUD'
         self.layer_bud = self.dsn_db.CreateLayer(table, srs, ogr.wkbPolygon, ['OVERWRITE=YES',
@@ -386,6 +390,9 @@ class VFKBudBuilder(VFKBuilder):
         :param int limit: define amount of built buildings, default is None - no limit
         :return: built building geometries and corresponding building identification numbers are written in the source database
         """
+        if self.layer_bud is None:
+            return
+
         counter_bul = 0
         # Unique building identification numbers
         bud_id = self.executeSQL('SELECT distinct bud_id FROM ob')
