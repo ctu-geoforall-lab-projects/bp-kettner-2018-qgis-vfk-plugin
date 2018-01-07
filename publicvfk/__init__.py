@@ -259,9 +259,10 @@ class VFKParBuilder(VFKBuilder):
         srs = osr.SpatialReference()
         srs.ImportFromEPSG(5514)
         # Test if database contains layer PAR after adding tables geometry columns
-        if self.dsn_db.GetLayerByName('PAR').GetFeature(1):
-            self.layer_par = None
-            return
+        if self.dsn_db.GetLayerByName('PAR') is not None:
+            if self.dsn_db.GetLayerByName('PAR').GetFeature(1):
+                self.layer_par = None
+                return
         # New layer
         table = 'PAR'
         self.layer_par = self.dsn_db.CreateLayer(table, srs, ogr.wkbPolygon,
@@ -370,9 +371,10 @@ class VFKBudBuilder(VFKBuilder):
         srs = osr.SpatialReference()
         srs.ImportFromEPSG(5514)
         # Test if database contains layer BUD after adding tables geometry columns
-        if self.dsn_db.GetLayerByName('BUD').GetFeature(1):
-            self.layer_bud = None
-            return
+        if self.dsn_db.GetLayerByName('BUD') is not None:
+            if self.dsn_db.GetLayerByName('BUD').GetFeature(1):
+                self.layer_bud = None
+                return
         # New layer
         table = 'BUD'
         self.layer_bud = self.dsn_db.CreateLayer(table, srs, ogr.wkbPolygon, ['OVERWRITE=YES',
