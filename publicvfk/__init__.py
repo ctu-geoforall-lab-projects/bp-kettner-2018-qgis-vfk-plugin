@@ -292,7 +292,7 @@ class VFKParBuilder(VFKBuilder):
         counter = 0
 
         # get list of unique par ids
-        parcels = self.executeSQL('SELECT par_id_1 as id FROM hp UNION SELECT par_id_2 as id from hp')
+        parcels = self.executeSQL('SELECT par_id_1 as id FROM hp WHERE par_id_1 is not NULL UNION SELECT par_id_2 as id from hp WHERE par_id_2 is not NULL')
 
         db = sqlite3.connect(self.dbname)
         if db is None:
