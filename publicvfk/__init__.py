@@ -290,6 +290,7 @@ class VFKParBuilder(VFKBuilder):
             return
 
         counter = 0
+        counter_db = 0
 
         # get list of unique par ids
         parcels = self.executeSQL('SELECT par_id_1 as id FROM hp WHERE par_id_1 is not NULL UNION SELECT par_id_2 as id from hp WHERE par_id_2 is not NULL')
@@ -348,8 +349,13 @@ class VFKParBuilder(VFKBuilder):
 
             # print result to stdout and check limit (will be removed)
             counter += 1
+            counter_db += 1
             if limit and counter > limit:
                 break
+            if counter_db > 2000:
+                self.layer_par.CommitTransaction()
+                self.layer_par.StartTransaction()
+                counter = 1
 
         # End transaction
         self.layer_par.CommitTransaction()
@@ -395,7 +401,8 @@ class VFKBudBuilder(VFKBuilder):
         if self.layer_bud is None:
             return
 
-        counter_bul = 0
+        counter = 0
+        counter_db = 0
         # Unique building identification numbers
         bud_id = self.executeSQL('SELECT distinct bud_id FROM ob')
         # List of lists with points that belong to one unique bud_id
@@ -405,10 +412,11 @@ class VFKBudBuilder(VFKBuilder):
             ids_building.append(list_id)
         # Start transaction
         self.layer_bud.StartTransaction()
-
+        count = len(bud_id)
         # Unclosed buildings
         unclosed_bul = []
         for i in range(len(ids_building)):
+            # print("{}/{} ".format(i, count))
             building = bud_id[i]
             lines = ids_building[i]
             list_sbp = []
@@ -438,10 +446,15 @@ class VFKBudBuilder(VFKBuilder):
             value = None
             # print 'Lomove body pro jednu budovu',list_sbp
             # print (building, poly_geom.ExportToWkt())
-            counter_bul += 1
+            counter += 1
+            counter_db += 1
             # print ('Sestavena budova cislo {}.'.format(counter_bul))
-            if limit and counter_bul > limit:
+            if limit and counter > limit:
                 break
+            if counter_db > 2000:
+                self.layer_bud.CommitTransaction()
+                self.layer_bud.StartTransaction()
+                counter_db = 1
         # End transaction
         self.layer_bud.CommitTransaction()
 
