@@ -197,14 +197,11 @@ class VFKBuilder(object):
         db.commit()  # without commit it does not write data from the last sql command
         db.close()
 
-    def filter_layer(self, lyr_name, filter1, filter2, id1, id2=None):
+    def filter_layer(self, lyr_name, sql_where):
         """Form a list of vertices based on filter and layer name
 
         :param str lyr_name: name of the layer
-        :param str filter1: the first part of filter
-        :param str filter2: the second part of filter
-        :param int id1: value for the first filter
-        :param int id2: value for the second filter, optional
+        :param str sql_where: SQL WHERE statement
         :return: list of values
         :raises VFKBuilderError: if required layer is not in the source database or is empty
         """
@@ -214,10 +211,7 @@ class VFKBuilder(object):
             raise VFKBuilderError('Required layer is empty or not connected')
             # Filter of vertices on specified parcel id
         layer_values = []
-        if id2 is not None:
-            layer.SetAttributeFilter("{0}'{2}'{1}'{3}'".format(filter1, filter2, id1, 1))
-        else:
-            layer.SetAttributeFilter("{0}'{2}'{1}'{2}'".format(filter1, filter2, id1))
+        layer.SetAttributeFilter(sql_where)
         for feat in layer:
             layer_values.append(feat)
         layer.SetAttributeFilter(None)  # it is needed?
@@ -311,7 +305,7 @@ class VFKParBuilder(VFKBuilder):
             # create empty list to save the boundaries of built parcel
             list_vertices = []  # vytvoreni prazdneho seznamu pro ulozeni hranic sestavovane parcely
             # collect unsorted list of vertices forming par boundary
-            for feature in self.filter_layer('HP','PAR_ID_1 = ',' or PAR_ID_2 = ',par_id):
+            for feature in self.filter_layer('HP', 'PAR_ID_1 = {0} or PAR_ID_2 = {0}'.format(par_id)):
                 geom = feature.GetGeometryRef()
                 list_vertices.append(geom.GetPoints())  # list of parcel boundaries - already geometry(seznam hranic parcel - jiz geometrie)
             # Create par geometry
@@ -422,7 +416,7 @@ class VFKBudBuilder(VFKBuilder):
             list_sbp = []
             # print 'idecka jedne budovy',lines
             for line in lines:
-                for feature in self.filter_layer('SBP', 'OB_ID = ', ' and PORADOVE_CISLO_BODU = ',line,1):
+                for feature in self.filter_layer('SBP', 'OB_ID = {0} and PORADOVE_CISLO_BODU = {1}'.format(line, 1)):
                     geom = feature.GetGeometryRef()
                     list_sbp.append(geom.GetPoints())
             # print 'ID pocitadlo', counter_id
