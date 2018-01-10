@@ -33,6 +33,15 @@ class VFKBuilder(object):
         if self.dbname is None:
             self.dbname = self.filename + '.db'
 
+        # connect
+        self.db = sqlite3.connect(self.dbname)
+        if self.db is None:
+            raise VFKBuilderError('Database is not connected')
+
+        # cur = self.db.cursor()
+        # cur.execute("PRAGMA synchronous = OFF")
+        # self.db.commit()  # without commit it does not write data from the last sql command
+
         # add tables
         self.add_tables(os.path.join(
             os.path.dirname(__file__),
@@ -43,6 +52,11 @@ class VFKBuilder(object):
         self.dsn_db = ogr.Open(self.dbname, True)
         if self.dsn_db is None:
             raise VFKBuilderError('Database in write mode is not connected')
+
+    def __del__(self):
+        self.db.close()
+        # Close database
+        self.dsn_db = None
 
     def build_bound(self, list_vertices):
         """Build a geometry of specified boundary in geometric way 
@@ -185,17 +199,12 @@ class VFKBuilder(object):
         :param str sqlfileName: path to the file with sql commands
         :return: added tables in the database
         """
-        # Connection to the database
-        db = sqlite3.connect(self.dbname)
-        if db is None:
-            raise VFKBuilderError('Database is not connected')
         # Adding tables
-        cur = db.cursor()
+        cur = self.db.cursor()
         sqlCommands = self.get_sql_commands_from_file(sqlfileName)
         for command in sqlCommands:
             cur.execute(command)
-        db.commit()  # without commit it does not write data from the last sql command
-        db.close()
+        self.db.commit()  # without commit it does not write data from the last sql command
 
     def filter_layer(self, lyr_name, sql_where):
         """Form a list of vertices based on filter and layer name
@@ -225,20 +234,15 @@ class VFKBuilder(object):
         :return: list of values
         :raises VFKBuilderError: if database is not connected
         """
-        # Connect to db
-        db = sqlite3.connect(self.dbname)
-        if db is None:
-            raise VFKBuilderError('Database is not connected')
         # New list to save values
         values_returned = []
-        cur = db.cursor()
+        cur = self.db.cursor()
         cur.execute(SQLcommand)
         while True:
             row = cur.fetchone()
             if row == None:
                 break
             values_returned.append(row[0])
-        db.close()
 
         return values_returned
 
@@ -289,10 +293,6 @@ class VFKParBuilder(VFKBuilder):
         # get list of unique par ids
         parcels = self.executeSQL('SELECT par_id_1 as id FROM hp WHERE par_id_1 is not NULL UNION SELECT par_id_2 as id from hp WHERE par_id_2 is not NULL')
 
-        db = sqlite3.connect(self.dbname)
-        if db is None:
-            raise VFKBuilderError('Database is not connected')
-
         # Start transaction
         self.layer_par.StartTransaction()
 
@@ -324,7 +324,7 @@ class VFKParBuilder(VFKBuilder):
             # Set id_par field
             value.SetField("id_par", par_id)
             # Set par number fields
-            cur = db.cursor()
+            cur = self.db.cursor()
             cur.execute(
                 'SELECT distinct op.text FROM(SELECT par_id_1 as id FROM hp UNION SELECT par_id_2 as id from hp) uniq_par JOIN op ON op.par_id = uniq_par.id WHERE op.text is not null and par_id = {}'.format(
                     par_id))
@@ -346,6 +346,7 @@ class VFKParBuilder(VFKBuilder):
             counter_db += 1
             if limit and counter > limit:
                 break
+            # see http://beets.io/blog/sqlite-nightmare.html
             if counter_db > 2000:
                 self.layer_par.CommitTransaction()
                 self.layer_par.StartTransaction()
@@ -354,11 +355,6 @@ class VFKParBuilder(VFKBuilder):
         # End transaction
         self.layer_par.CommitTransaction()
 
-        db.close()
-        # Unclosed
-        # print ('The number of unclosed parcels: {}'.format(len(unclosed)))
-        # Close database
-        self.dsn_db = None
 
 class VFKBudBuilder(VFKBuilder):
     def __init__(self, filename):
