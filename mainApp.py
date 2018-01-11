@@ -168,6 +168,7 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         self.vfkBrowser.showHelpPage()
 
         self.settings = QSettings("CTU", "VFK plugin")
+        self.full_data = True
 
     def browseButton_clicked(self, browseButton_id=1):
         """
@@ -216,7 +217,7 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         self.vfkBrowser.goForth()
 
     def selectParInMap(self):
-        self.showInMap(self.vfkBrowser.currentParIds(), "PAR") #PAR
+        self.showInMap(self.vfkBrowser.currentParIds(), "PAR")
 
     def selectBudInMap(self):
         self.showInMap(self.vfkBrowser.currentBudIds(), "BUD")
@@ -465,13 +466,11 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         name = layer.name()
         symbologyFile = ''
 
-        print 'x', name
         if name == 'PAR':
             symbologyFile = ':/parStyle.qml'
         elif name == 'BUD':
             symbologyFile = ':/budStyle.qml'
 
-        print 'y', symbologyFile
         errorMsg, resultFlag = layer.loadNamedStyle(symbologyFile)
 
         if not resultFlag:
@@ -530,7 +529,6 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
 
         QgsApplication.processEvents()
 
-        QgsMessageLog.logMessage('Tady, line 531: {0} a kam ukazuje tohle: {1}'.format(os.environ['OGR_VFK_DB_NAME'], self.__mDataSourceName), 'Zprava o chybe zde', QgsMessageLog.INFO)
         self.__mOgrDataSource = ogr.Open(
             fileName, 0)   # 0 - datasource is open in read-only mode
 
@@ -539,7 +537,6 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
                 u"Nelze otevřít VFK soubor '{}' jako platný OGR datasource.".format(fileName))
 
         t_par = self.__mOgrDataSource.GetLayerByName('PAR')
-        #t_bud = self.__mOgrDataSource.GetLayerByName('BUD')
 
         if t_par == None:
             self.__mOgrDataSource = None
@@ -553,7 +550,32 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
                 u'Data byla načtena pomocí rozšíření, které neobsažené bloky PAR a BUD sestavilo z neúplného VFK souboru.')
             self.__mOgrDataSource = ogr.Open(os.environ['OGR_VFK_DB_NAME'], 0) 
             self.__mDataSourceName = os.environ['OGR_VFK_DB_NAME']
-        
+
+        #What kind of data were loaded? full/incomplete
+        if not self.__mOgrDataSource.GetLayerByName('JED'):
+            self.full_data = False
+
+        QgsMessageLog.logMessage('Nactena data jsou uplna: {0}'.format(self.full_data),
+                                 'Promenna typ nactenych dat', QgsMessageLog.INFO)
+
+        if self.full_data is False:
+            self.actionBack.setEnabled(False)
+            self.actionBack.setToolTip(u'Zpět-nefunkční pro neúplná data')
+            self.actionZpracujZmeny.setEnabled(False)
+            self.actionZpracujZmeny.setToolTip(u'Zpracování změn pro neúplná data není možné')
+            self.actionForward.setEnabled(False)
+            self.actionForward.setToolTip(u'Vpřed-nefunkční pro neúplná data')
+            self.actionSelectBudInMap.setEnabled(False)
+            self.actionSelectBudInMap.setToolTip(u'Výběr budov v mapě není možný pro neúplná data')
+            self.actionCuzkPage.setEnabled(False)
+            self.actionCuzkPage.setToolTip(u'Nelze nahlížet do katastru nemovitostí pro neúplná data')
+            self.actionShowInfoaboutSelection.setEnabled(False)
+            self.actionShowInfoaboutSelection.setToolTip(u'Informace o výběru pro neúplná data nefungují')
+            self.actionShowHelpPage.setEnabled(False)
+            self.actionShowHelpPage.setToolTip(u'Nápověda není k dispozici pro neúplná data')
+            self.actionExportLatex.setEnabled(False)
+            self.actionExportHtml.setEnabled(False)
+
         layers_names = []
 
         layerCount = self.__mOgrDataSource.GetLayerCount()
@@ -565,8 +587,7 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         self.labelLoading.setText(
             u'Layernames jsou pripravene: {}'.format(layers_names))
 
-        #if ('PAR' not in layers_names or 'BUD' not in layers_names) and len(self.__vfkLineEdits) == 1:
-        if 'PAR' not in layers_names and len(self.__vfkLineEdits) == 1:
+        if ('PAR' not in layers_names or 'BUD' not in layers_names) and len(self.__vfkLineEdits) == 1:
             self.__dataWithoutParBud()
             self.labelLoading.setText(
                 u'Data nemohla být načtena. Vstupní soubor neobsahuje bloky PAR a BUD.')
@@ -609,7 +630,7 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         return ids
 
     def showInfoAboutSelection(self):
-        layers = ["PAR", "BUD"]#["PAR", "BUD"]
+        layers = ["PAR", "BUD"]
         layerIds = {}
         for layer in layers:
             if layer in self.__mLoadedLayers:
