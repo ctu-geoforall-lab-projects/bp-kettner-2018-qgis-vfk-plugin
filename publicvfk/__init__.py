@@ -41,11 +41,12 @@ class VFKBuilder(object):
         # self.db.commit()  # without commit it does not write data from the last sql command
 
         # add tables
-        self.add_tables(os.path.join(
-            os.path.dirname(__file__),
-            'sql_commands',
-            'add_HP_SBP_geom.sql'
-        ))
+        if int(gdal.VersionInfo()) < 2020000:
+            self.add_tables(os.path.join(
+                os.path.dirname(__file__),
+                'sql_commands',
+                'add_HP_SBP_geom.sql'
+            ))
 
         self.dsn_db = ogr.Open(self.dbname, True)
         if self.dsn_db is None:
