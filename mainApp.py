@@ -555,9 +555,6 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         if not self.__mOgrDataSource.GetLayerByName('JED'):
             self.full_data = False
 
-        QgsMessageLog.logMessage('Nactena data jsou uplna: {0}'.format(self.full_data),
-                                 'Promenna typ nactenych dat', QgsMessageLog.INFO)
-
         if self.full_data is False:
             self.actionBack.setEnabled(False)
             self.actionBack.setToolTip(u'Zpět-nefunkční pro neúplná data')
@@ -566,15 +563,21 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
             self.actionForward.setEnabled(False)
             self.actionForward.setToolTip(u'Vpřed-nefunkční pro neúplná data')
             self.actionSelectBudInMap.setEnabled(False)
-            self.actionSelectBudInMap.setToolTip(u'Výběr budov v mapě není možný pro neúplná data')
+            self.actionSelectBudInMap.setToolTip(u'Výběr budov v mapě není možný u neúplných dat')
             self.actionCuzkPage.setEnabled(False)
-            self.actionCuzkPage.setToolTip(u'Nelze nahlížet do katastru nemovitostí pro neúplná data')
+            self.actionCuzkPage.setToolTip(u'V neúplných datech nelze nahlížet do katastru nemovitostí')
             self.actionShowInfoaboutSelection.setEnabled(False)
             self.actionShowInfoaboutSelection.setToolTip(u'Informace o výběru pro neúplná data nefungují')
             self.actionShowHelpPage.setEnabled(False)
             self.actionShowHelpPage.setToolTip(u'Nápověda není k dispozici pro neúplná data')
             self.actionExportLatex.setEnabled(False)
             self.actionExportHtml.setEnabled(False)
+
+
+
+        QgsMessageLog.logMessage('Nactena data jsou uplna: {0}. Co je v promenne? {1}'.format(self.full_data,
+                                self.__mSearchController.__controls),
+                                 'Promenna typ nactenych dat', QgsMessageLog.INFO)
 
         layers_names = []
 
