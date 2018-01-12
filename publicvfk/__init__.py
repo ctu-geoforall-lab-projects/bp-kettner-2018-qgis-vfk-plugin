@@ -3,7 +3,6 @@
 import os
 import sys
 import sqlite3
-from qgis.core import *
 
 from osgeo import ogr, osr, gdal
 
@@ -20,7 +19,6 @@ class VFKBuilder(object):
         :raises VFKBuilderError: if the database for writing is not connected
         """
         self.filename = os.path.splitext(filename)[0]
-        # QgsMessageLog.logMessage('X{}'.format(os.environ['OGR_VFK_DB_NAME']), 'X to je jedno', QgsMessageLog.INFO)
         self.dsn_vfk = ogr.Open(self.filename + '.vfk')
         if self.dsn_vfk is None:
             raise VFKBuilderError('Nelze otevrit VFK soubor {}'.format(self.filename + '.vfk'))
