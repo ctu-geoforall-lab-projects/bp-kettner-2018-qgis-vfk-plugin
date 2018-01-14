@@ -21,7 +21,7 @@ class VFKBuilder(object):
         self.filename = os.path.splitext(filename)[0]
         self.dsn_vfk = ogr.Open(self.filename + '.vfk')
         if self.dsn_vfk is None:
-            raise VFKBuilderError('Nelze otevrit VFK soubor {}'.format(self.filename + '.vfk'))
+            raise VFKBuilderError('Can not open VFK file {}'.format(self.filename + '.vfk'))
         # this hack is needed only for GDAL < 2.2
         if int(gdal.VersionInfo()) < 2020000:
             self.dsn_vfk.GetLayerByName('HP').GetFeature(1)
@@ -222,7 +222,7 @@ class VFKBuilder(object):
         layer.SetAttributeFilter(sql_where)
         for feat in layer:
             layer_values.append(feat)
-        layer.SetAttributeFilter(None)  # it is needed?
+        layer.SetAttributeFilter(None)
 
         return layer_values
 
@@ -302,11 +302,11 @@ class VFKParBuilder(VFKBuilder):
             # print("{}/{} ".format(idx, count))
             idx += 1
             # create empty list to save the boundaries of built parcel
-            list_vertices = []  # vytvoreni prazdneho seznamu pro ulozeni hranic sestavovane parcely
+            list_vertices = []
             # collect unsorted list of vertices forming par boundary
             for feature in self.filter_layer('HP', 'PAR_ID_1 = {0} or PAR_ID_2 = {0}'.format(par_id)):
                 geom = feature.GetGeometryRef()
-                list_vertices.append(geom.GetPoints())  # list of parcel boundaries - already geometry(seznam hranic parcel - jiz geometrie)
+                list_vertices.append(geom.GetPoints())  # list of parcel boundaries - already geometry
             # Create par geometry
             poly_geom = self.build_bound(list_vertices)
             if poly_geom is not None:
@@ -409,12 +409,10 @@ class VFKBudBuilder(VFKBuilder):
             building = bud_id[i]
             lines = ids_building[i]
             list_sbp = []
-            # print 'idecka jedne budovy',lines
             for line in lines:
                 for feature in self.filter_layer('SBP', 'OB_ID = {0} and PORADOVE_CISLO_BODU = {1}'.format(line, 1)):
                     geom = feature.GetGeometryRef()
                     list_sbp.append(geom.GetPoints())
-            # print 'ID pocitadlo', counter_id
             # Create bud geometry
             poly_geom = self.build_bound(list_sbp)
             if poly_geom is not None:
@@ -428,7 +426,6 @@ class VFKBudBuilder(VFKBuilder):
             value = ogr.Feature(self.layer_bud_def)
             # Set geometry
             value.SetGeometry(poly_geom)
-            # print("Cislo zapsane budovy: {} ".format(building))
             # Set id_par field
             value.SetField("id_bud", building)
             self.layer_bud.CreateFeature(value)
@@ -437,7 +434,6 @@ class VFKBudBuilder(VFKBuilder):
             # print (building, poly_geom.ExportToWkt())
             counter += 1
             counter_db += 1
-            # print ('Sestavena budova cislo {}.'.format(counter_bul))
             if limit and counter > limit:
                 break
             if counter_db > 2000:
