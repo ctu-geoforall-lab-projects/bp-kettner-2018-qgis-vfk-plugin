@@ -104,11 +104,6 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
             self.actionZpracujZmeny.setToolTip(u'Zpracování změn není povoleno, verze GDAL je nižší než 2.2.0.')
             self.groupBox.setEnabled(False)
 
-        # settings
-        # only for testing purposes...
-        #testFile = os.path.join(os.path.dirname(__file__), 'sample_data', '600016.db')
-        #self.vfkFileLineEdit.setText(testFile)
-        #self.__fileName.append(testFile)
         self.loadVfkButton.setDisabled(True)
 
         self.searchFormMainControls = SearchFormController.MainControls()
@@ -176,7 +171,6 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         :return:
         """
         title = u'Načti soubor VFK'
-        #settings = QSettings("CTU", "VFK plugin")
         sender = u'{}-lastUserFilePath'.format(self.sender().objectName())
         lastUsedDir = self.settings.value(sender, '')
 
@@ -192,7 +186,8 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
             else:
                 self.__fileName.append(loaded_file)
                 if browseButton_id == 1:
-                    self.vfkFileLineEdit.setText(self.__fileName[-1])
+                    self.vfkFileLineEdit.setText(self.__fileName[0])
+                    #TODO:vyresit nacitani vice souboru
                 else:
                     self.__vfkLineEdits['vfkLineEdit_{}'.format(len(self.__vfkLineEdits))].setText(
                         self.__fileName[browseButton_id - 1])
@@ -573,12 +568,6 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
             self.actionExportLatex.setEnabled(False)
             self.actionExportHtml.setEnabled(False)
 
-
-
-        QgsMessageLog.logMessage('Nactena data jsou uplna: {0}. Co je v promenne? {1}'.format(self.full_data,
-                                self.__mSearchController.__controls),
-                                 'Promenna typ nactenych dat', QgsMessageLog.INFO)
-
         layers_names = []
 
         layerCount = self.__mOgrDataSource.GetLayerCount()
@@ -586,9 +575,6 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         for i in xrange(layerCount):
             layers_names.append(
                 self.__mOgrDataSource.GetLayer(i).GetLayerDefn().GetName())
-
-        self.labelLoading.setText(
-            u'Layernames jsou pripravene: {}'.format(layers_names))
 
         if ('PAR' not in layers_names or 'BUD' not in layers_names) and len(self.__vfkLineEdits) == 1:
             self.__dataWithoutParBud()
@@ -600,8 +586,6 @@ class MainApp(QDockWidget, QMainWindow, Ui_MainApp):
         # load all layers
         self.progressBar.setRange(0, layerCount - 1)
         for i in xrange(layerCount):
-            #if layerCount == 1:
-            #   self.progressBar.setValue(1)
             self.progressBar.setValue(i)
             theLayerName = self.__mOgrDataSource.GetLayer(
                 i).GetLayerDefn().GetName()
